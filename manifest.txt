@@ -1,8 +1,0 @@
-MANIFEST
-LICENSE
-README
-Todo
-Changes
-lib/Net/Server/POP3.pm
-t/001_load.t
-Makefile.PL

@@ -1,6 +1,0 @@
-Revision history for Perl module Net::Server::POP3
-
-0.01 Tue Dec 30 16:49:29 2003
-	- original version; created by ExtUtils::ModuleMaker 0.32
-
-

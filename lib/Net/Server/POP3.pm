@@ -5,6 +5,10 @@ use Data::Dumper; $|++; # For debugging.  This can eventually be removed, but ri
 use strict;
 my %parameters; my @message; my @deleted;
 
+my $EOL = "\n"; # Change to "\r\n" if you don't get a full CRLF from
+                # "\n".  I'm investigating how to fix this so it works
+                # on all versions of Perl on all platforms.
+
 # These are the RFCs that I know about and intend to implement:
 # http://www.faqs.org/rfcs/rfc1939.html
 # http://www.faqs.org/rfcs/rfc2449.html
@@ -12,7 +16,7 @@ my %parameters; my @message; my @deleted;
 BEGIN {
 	use Exporter ();
 	use vars qw ($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
-	$VERSION     = 0.0001;
+	$VERSION     = 0.0003;
 	@ISA         = qw (Exporter);
 	@EXPORT      = qw ();
 	@EXPORT_OK   = qw (startserver op user);
@@ -35,7 +39,7 @@ sub startserver {
   $op{disconnect}   ||= \&nop;
   $op{welcome}      ||= "Welcome to my Test POP3 Server.  Some stuff does not work yet.";
 
-  exists $op{list} or die "The list callback is required.";
+  exists $op{list} or die "The list callback is required."; # Should these croak instead of die?
   exists $op{retrieve} or die "The retrieve callback is required.";
 
   # use Net::Server::Fork; # We want to fix this to use $op{servertype}
@@ -46,7 +50,7 @@ sub startserver {
 
 sub messagesize {
   my ($msgnum) = @_;
-  if ($op{size}) {
+  if (ref $op{size}) {
     return $op{size}->($message[$msgnum-1]);
   } else {
     return length($op{retrieve}->($user{name}, $message[$msgnum-1]));
@@ -80,7 +84,7 @@ sub process_request { # The name of this sub is magic for Net::Server.
 
     $op{connect}->();
     eval {
-      print "+OK $op{welcome}\n";
+      print "+OK $op{welcome}$EOL";
 
       local $SIG{ALRM} = sub { die "Timed Out!\n" };
       my $timeout = 600; # give the user this many seconds to type a
@@ -91,14 +95,14 @@ sub process_request { # The name of this sub is magic for Net::Server.
       my $previous_alarm = alarm($timeout);
       my $state = 0; # 0 = not authenticated.  1 = authenticated.
       while (<STDIN>) {
-        # s/\r?\n$//;
         chomp;
         if ($state) {
           # We _are_ authenticated.  Let user do stuff.
+          # The RFC calls this the Transaction State.
           if (/^STAT/i) {
-            print "+OK ".(scalar @message)." ".boxsize(@message)."\n";
+            print "+OK ".(scalar @message)." ".boxsize(@message).$EOL;
           } elsif (/^VERSION/i) {
-            print "+OK Net::Server::POP3 $VERSION\n";
+            print "+OK Net::Server::POP3 $VERSION$EOL";
           } elsif (/^LIST\s*(\d*)/i) {
             my $msgnum = $1;
             if ($msgnum) {
@@ -107,10 +111,10 @@ sub process_request { # The name of this sub is magic for Net::Server.
               # message.  This line is called a "scan listing" for
               # that message.
               if ($msgnum <= @message) {
-                print "+OK " . scanlisting($msgnum)."\n";
+                print "+OK " . scanlisting($msgnum).$EOL;
               } else {
                 # Most clients won't even try this.
-                print "-ERR Cannot find message $msgnum (only ".@message." in drop)\n";
+                print "-ERR Cannot find message $msgnum (only ".@message." in drop)$EOL";
               }
             } else {
               # If no argument was given and the POP3 server issues a
@@ -123,15 +127,15 @@ sub process_request { # The name of this sub is magic for Net::Server.
               # server responds with no scan listings--it issues a
               # positive response followed by a line containing a
               # termination octet and a CRLF pair.
-              print "+OK scan listing follows\n";
+              print "+OK scan listing follows$EOL";
               for (@message) {
                 ++$msgnum;
                 if (not $deleted[$msgnum-1]) {
                   # RFC1939 sez: Note that messages marked as deleted are not listed.
-                  print scanlisting($msgnum)."\n";
+                  print scanlisting($msgnum).$EOL;
                 }
               }
-              print ".\n";
+              print ".$EOL";
             }
           } elsif (/^UIDL\s*(\d*)/i) {
             my $msgnum = $1;
@@ -141,10 +145,10 @@ sub process_request { # The name of this sub is magic for Net::Server.
               # for that message.  This line is called a "unique-id
               # listing" for that message.
               if ($msgnum <= @message) {
-                print "+OK $msgnum " . $message[$msgnum-1] . "\n";
+                print "+OK $msgnum " . $message[$msgnum-1] . $EOL;
               } else {
                 # Most clients won't even try this.
-                print "-ERR Cannot find message $msgnum (only ".@message." in drop)\n";
+                print "-ERR Cannot find message $msgnum (only ".@message." in drop)$EOL";
               }
             } else {
               # If no argument was given and the POP3 server issues a
@@ -153,14 +157,14 @@ sub process_request { # The name of this sub is magic for Net::Server.
               # in the maildrop, the POP3 server responds with a line
               # containing information for that message.  This line is
               # called a "unique-id listing" for that message.
-              print "+OK message-id listing follows\n";
+              print "+OK message-id listing follows$EOL";
               for (@message) {
                 ++$msgnum;
                 if (not $deleted[$msgnum-1]) {
-                  print "$msgnum $_\n";
+                  print "$msgnum $_$EOL";
                 }
               }
-              print ".\n";
+              print ".$EOL";
             }
           } elsif (/^TOP\s*(\d+)\s*(\d+)/i) {
             # RFC lists TOP as optional, but Mozilla Messenger seems to require it.
@@ -177,24 +181,24 @@ sub process_request { # The name of this sub is magic for Net::Server.
             # body, then the POP3 server sends the entire message.
             my ($head, $body) = split /\n\n/, $op{retrieve}->($user{name}, $message[$msgnum-1]), 2;
             my ($hl, $bl) = (length $head, length $body);
-            print "+OK top of message follows ($hl octets in head and $bl octets in body up to $toplines lines)\n";
+            print "+OK top of message follows ($hl octets in head and $bl octets in body up to $toplines lines)$EOL";
             for (split /\n/m, $head) {
               chomp;
               s/^/./ if /^[.]/;
-              print "$_\n";
+              print "$_$EOL";
             }
-            print "\n";
+            print "$EOL";
             my $lnum;
             for (split /\n/m, $body) {
               chomp;
               s/^/./ if /^[.]/;
-              print "$_\n" if ++$lnum <= $toplines;
+              print "$_$EOL" if ++$lnum <= $toplines;
             }
-            print ".\n";
+            print ".$EOL";
           } elsif (/^RETR\s*(\d*)/i) {
             my ($msgnum) = $1;
             if ($msgnum <= @message) {
-              print "+OK sending $msgnum " . $message[$msgnum-1] . "\n";
+              print "+OK sending $msgnum " . $message[$msgnum-1] . "$EOL";
               warn "Sending message $msgnum:\n" if $main::debug;
               warn "\@message is as follows: " . Dumper(\@message) . "\n" if $main::debug;
               my $msgid = $message[$msgnum-1];
@@ -207,13 +211,13 @@ sub process_request { # The name of this sub is magic for Net::Server.
               for (split /\n/, $msg) {
                 chomp;
                 s/^/./ if /^[.]/;
-                print "$_\n";
+                print "$_$EOL";
                 warn "$_\n" if $main::debug;
               }
-              print ".\n";
+              print ".$EOL";
             } else {
               # Most clients won't even try this.
-              print "-ERR Cannot find message $msgnum (only ".@message." in drop)\n";
+              print "-ERR Cannot find message $msgnum (only ".@message." in drop)$EOL";
             }
           } elsif (/^DELE\s*(\d*)/i) {
             my ($msgnum) = $1;
@@ -224,17 +228,17 @@ sub process_request { # The name of this sub is magic for Net::Server.
               # according to the RFC, but in practice clients should
               # simply not do that, so it can be something we
               # implement later, after most stuff works.
-              print "+OK marking message number $msgnum for later deletion.\n";
+              print "+OK marking message number $msgnum for later deletion.$EOL";
               # The POP3 server does not actually delete the message
               # until the POP3 session enters the UPDATE state.
             } else {
               # Most clients won't even try this.
-              print "-ERR Cannot find message $msgnum (only ".@message." in drop)\n";
+              print "-ERR Cannot find message $msgnum (only ".@message." in drop)$EOL";
             }
           } elsif (/^QUIT/i) {
             my $msgnum = 0;
             for (@message) {
-              if ($deleted[++$msgnum]) {
+              if ($deleted[(++$msgnum)-1]) {
                 if ($op{delete}) {
                   # Yes, this is optional so that highly minimalistic
                   # implementations can skip it, but any serious mail
@@ -244,31 +248,31 @@ sub process_request { # The name of this sub is magic for Net::Server.
                 }
               }
             }
-            print "+OK Bye, closing connection...\n";
+            print "+OK Bye, closing connection...$EOL";
             $op{disconnect}->();
             return 0;
           } elsif (/^NOOP/) {
-            print "+OK nothing to do.\n";
+            print "+OK nothing to do.$EOL";
           } elsif (/^RSET/) {
             @deleted = ();
-            print "+OK now no messages are marked for deletion at end of session.\n";
+            print "+OK now no messages are marked for deletion at end of session.$EOL";
           } elsif (/^CAPA/) {
             print capabilities(1); # The 1 indicates we are in the transaction state.
           } else {
-            print STDERR "Client said \"$_\" (which I do not understand in the transaction state)\n";
-            print "-ERR That must be something I have not implemented yet.\n";
+            warn "Client said \"$_\" (which I do not understand in the transaction state)\n" if defined $debug; # even if it's at level 0.  undef it if you don't want this.
+            print "-ERR That must be something I have not implemented yet.$EOL";
           }
         } else {
-          # We're not authenticated yet.  Try to authenticate.
+          # We're not authenticated yet.  The RFC calls this the Authentication State.
           if (/^QUIT/i) {
-            print "+OK Bye, closing connection...\n";
+            print "+OK Bye, closing connection...$EOL";
             $op{disconnect}->();
             return 0;
           } elsif (/^VERSION/i) {
-            print "+OK Net::Server::POP3 $VERSION\n";
+            print "+OK Net::Server::POP3 $VERSION$EOL";
           } elsif (/^USER\s*(\S*)/i) {
             $user{name} = $1;  delete $user{pass};
-            print "+OK $user{name} knows where his towel is; use PASS to authenticate\n";
+            print "+OK $user{name} knows where his towel is; use PASS to authenticate$EOL";
           } elsif (/^PASS\s*(.*?)\s*$/i) {
             $user{pass} = $1;
             if ($user{name}) {
@@ -276,21 +280,21 @@ sub process_request { # The name of this sub is magic for Net::Server.
                 $state = 1;
                 @message = $op{list}->($user{name});
                 warn "Have maildrop: " . Dumper(\@message) . "\n" if $main::debug;
-                print "+OK $user{name}'s maildrop has ".@message." messages (".boxsize(@message)." octets)\n";
+                print "+OK $user{name}'s maildrop has ".@message." messages (".boxsize(@message)." octets)$EOL";
               } else {
                 delete $user{name};
-                print "-ERR Unable to lock maildrop at this time with that auth info\n";
+                print "-ERR Unable to lock maildrop at this time with that auth info$EOL";
               }
             } else {
-              print "-ERR You can only use PASS right after USER\n";
+              print "-ERR You can only use PASS right after USER$EOL";
             }
           } elsif (/^APOP/) {
-            print "-ERR APOP/MD5 authentication not yet implemented, try USER/PASS\n";
+            print "-ERR APOP authentication not yet implemented, try USER/PASS$EOL";
           } elsif (/^CAPA/) {
             print capabilities(0); # The zero means we're not authenticated yet.
           } else {
-            print STDERR "Client said \"$_\" (which I do not understand in the unauthenticated state)\n";
-            print "-ERR That must be something I have not implemented yet, or you need to authenticate.\n";
+            warn "Client said \"$_\" (which I do not understand in the unauthenticated state)\n" if defined $debug;
+            print "-ERR That must be something I have not implemented yet, or you need to authenticate.$EOL";
           }
         }
         alarm($timeout);
@@ -300,7 +304,7 @@ sub process_request { # The name of this sub is magic for Net::Server.
     };
 
       if ($@=~/timed out/i) {
-      print STDOUT "-ERR Timed Out.\n";
+      print STDOUT "-ERR Timed Out.$EOL";
       return;
     }
 }
@@ -566,6 +570,9 @@ LICENSE file included with this module.
   Net::Server http://search.cpan.org/search?query=Net::Server
   Mail::POP3Client http://search.cpan.org/search?query=Mail::POP3Client
 
+L<Net::Server|http://search.cpan.org/search?query=Net::Server>
+L<Mail::POP3Client|http://search.cpan.org/search?query=Mail::POP3Client>
+
 =cut
 
 ############################################# main pod documentation end ##
@@ -633,8 +640,8 @@ sub capabilities {
       push @capa, "EXPIRE $op{expiretime}";
     }
   }
-  return "$response\n".
-    (join "\n", @capa).".\n";
+  return "$response$EOL".
+    (join "$EOL", @capa).".$EOL";
 }
 
 42; #this line is important and will help the module return a true value

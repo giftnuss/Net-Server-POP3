@@ -86,7 +86,8 @@ implemented yet and so neither has restartserver().</p>
 <dt><strong><a name="item_port">port</a></strong><br />
 </dt>
 <dd>
-The port number to listen on.  110 is the default.
+The port number to listen on.  110 is the default.  You only need to
+supply a port number if you want to listen on a different port.
 </dd>
 <p></p>
 <dt><strong><a name="item_servertype">servertype</a></strong><br />
@@ -94,8 +95,8 @@ The port number to listen on.  110 is the default.
 <dd>
 A type of server implemented by Net::Server (q.v.)  The default is
 'Fork', which is suitable for installations with a small number of
-users.  At the time of this writing, this option is ignored and
-Net::Server::Fork is used, but a future version should fix this.
+users.  You only need to supply a servertype if you want to use a
+different type other than 'Fork'.
 </dd>
 <p></p>
 <dt><strong><a name="item_serveropts">serveropts</a></strong><br />
@@ -105,22 +106,33 @@ A hashref containing extra named arguments to pass to Net::Server.
 Particularly recommended for security reasons are user, group, and
 chroot.  See the docs for Net::Server for more information.
 </dd>
+<dd>
+<p>The serveropts hashref is optional.  You only need to supply it if you
+have optional arguments to pass through to Net::Server.</p>
+</dd>
 <p></p>
 <dt><strong><a name="item_connect">connect</a></strong><br />
 </dt>
 <dd>
-An optional callback that, if supplied, will be called when a client
-connects.  This is the recommended place to allocate resources such as
-a database connection handle.
+This callback, if supplied, will be called when a client connects.
+This is the recommended place to allocate resources such as a database
+connection handle or a lock on the maildrop.
+</dd>
+<dd>
+<p>The connect callback is optional; you only need to supply it if you
+have setup to do when a client connects.</p>
 </dd>
 <p></p>
 <dt><strong><a name="item_disconnect">disconnect</a></strong><br />
 </dt>
 <dd>
-This optional callback, if supplied, is called when the client
-disconnects.  If there is any cleanup to do, this is the place to do
-it.  Note that message deletion is not handled here, but in the delete
-callback.
+This callback, if supplied, is called when the client disconnects.  If
+there is any cleanup to do, this is the place to do it.  Note that
+message deletion is not handled here, but in the delete callback.
+</dd>
+<dd>
+<p>The disconnect callback is optional; you only need to supply it if you
+have cleanup to do when a client disconnects.</p>
 </dd>
 <p></p>
 <dt><strong><a name="item_authenticate">authenticate</a></strong><br />
@@ -130,8 +142,15 @@ The authenticate callback is passed a username, password, and IP
 address.  If the username and password are valid and the user is
 allowed to connect from that address and authenticate by the USER/PASS
 method, then the callback should try to get a changelock on the
-mailbox and return true if successful; it must return false if any of
-that fails.
+mailbox and return 1 if successful; it must return something other
+than 1 if any of that fails.  (Returning 0 does not specify the
+details of what went wrong; other values may in future versions have
+particular meanings.)
+</dd>
+<dd>
+<p>The authenticate callback is technically optional, but you need to
+supply it if you want any users to be able to log in using the USER
+and PASS commands.</p>
 </dd>
 <p></p>
 <dt><strong><a name="item_apop">apop</a></strong><br />
@@ -146,7 +165,11 @@ should attempt to lock the mailbox and return true if successful;
 otherwise, return false.
 </dd>
 <dd>
-<p>This is not implemented yet.</p>
+<p>The apop callback is only needed if you want to supply APOP
+authentication.</p>
+</dd>
+<dd>
+<p>This is not implemented yet, but I plan to implement it.</p>
 </dd>
 <p></p>
 <dt><strong><a name="item_list">list</a></strong><br />
@@ -158,6 +181,9 @@ will ingore the username, since they will already be locked in to the
 correct mailbox after authentication.  That's fine.  The username is
 passed as a help for minimalist implementations.)
 </dd>
+<dd>
+<p>The list callback is required.</p>
+</dd>
 <p></p>
 <dt><strong><a name="item_retrieve">retrieve</a></strong><br />
 </dt>
@@ -168,6 +194,9 @@ return the message as a string.  (Most implementations will ingore the
 username, since they will already be locked in to the correct mailbox
 after authentication.  That's fine.  The username is passed as a help
 for minimalist implementations.)
+</dd>
+<dd>
+<p>The retrieve callback is required.</p>
 </dd>
 <p></p>
 <dt><strong><a name="item_delete">delete</a></strong><br />
@@ -186,6 +215,10 @@ marking and unmarking for deletion.  When called, it can do whatever
 it wants, such as actually delete the message, archive it permanently,
 mark it as no longer to be given to this specific user, or whatever.
 </dd>
+<dd>
+<p>This callback is technically optional, but you'll need to supply one
+if you want to know when to remove messages from the user's maildrop.</p>
+</dd>
 <p></p>
 <dt><strong><a name="item_welcome">welcome</a></strong><br />
 </dt>
@@ -193,7 +226,62 @@ mark it as no longer to be given to this specific user, or whatever.
 This string is used as the welcome string.  It must not be longer than
 507 bytes, for arcane reasons involving RFC1939.  (The length is not
 checked automatically by Net::Server::POP3, though it may be in a
-future version.)
+future version.)  This is optional; a default welcome is supplied.
+</dd>
+<p></p>
+<dt><strong><a name="item_logindelay">logindelay</a></strong><br />
+</dt>
+<dd>
+If a number is given, it will be announced in the capabilities list as
+the minimum delay (in seconds) between successive logins by the same
+user (which applies to any user).  This does NOT enforce the delay; it
+only causes it to be announced in the capabilities list.  The
+authenticate callback is responsible for enforcement of the delay.
+The delay SHOULD be enforced if it is announced (RFC 2449).
+</dd>
+<dd>
+<p>If the delay may vary per user, logindelay should be a callback
+routine.  If the callback is passed no arguments, it is being asked
+for the maximum delay for all users; if it is passed an argument, this
+will be a valid, authenticated username and the callback should return
+the delay for that particular user.  Either way, the return value
+should be a number of seconds.  Again, this does NOT enforce the
+delay; it only causes it to be announced in the capabilities list.
+(Some clients may not even ask for the capabilities list, if they do
+not implement POP3 Extensions (RFC 2449).)</p>
+</dd>
+<dd>
+<p>The default is not to announce any particular delay.</p>
+</dd>
+<p></p>
+<dt><strong><a name="item_expiretime">expiretime</a></strong><br />
+</dt>
+<dd>
+If a number or the string 'NEVER' is given, it will be announced in
+the capabilities list as the length of time a message may remain on
+the server before it expires and may be automatically deleted by the
+server.  (The number is a number of days.)
+</dd>
+<dd>
+<p>This does NOT actually delete anything; it just announces the
+timeframe to the client.  Clients that do not support POP3 Extensions
+will not get this announcement.  'NEVER' means the server will never
+expire messages; 0 means that expiration is immanent and the client
+should not count on leaving messages on the server.  0 should be
+announced for example if the mere act of retrieving a message may
+cause it to expire shortly afterward.</p>
+</dd>
+<dd>
+<p>If the message expiration time may vary by user, expiretime should be
+a callback routine.  If the callback is passed no arguments, it is
+being asked for the minimum expiration time for all users, which it
+should return (as a whole number of days; 0 is acceptable); if it is
+passed an argument, this will be a valid, authenticated username and
+the callback should return the expiration time for this particular
+user, either as a whole number of days or the string 'NEVER'.</p>
+</dd>
+<dd>
+<p>The default is not to announce an expiration time.</p>
 </dd>
 <p></p></dl>
 <p>
@@ -243,6 +331,8 @@ LICENSE file included with this module.</p>
   perl(1)
   Net::Server <a href="http://search.cpan.org/search?query=Net::Server">http://search.cpan.org/search?query=Net::Server</a>
   Mail::POP3Client <a href="http://search.cpan.org/search?query=Mail::POP3Client">http://search.cpan.org/search?query=Mail::POP3Client</a></pre>
+<p><em>Net::Server</em>
+<em>Mail::POP3Client</em></p>
 <p>
 </p>
 <h2><a name="sample_function">sample_function</a></h2>

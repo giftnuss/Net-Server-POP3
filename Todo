@@ -16,15 +16,18 @@ These are in roughly the order they need to be done in.
 [    ] Implement as much as possible of RFC 2449
 [    ] Implement filtering stuff in the sample proxy
 [    ] Get wider testing
+[    ] Implement stopserver() and restartserver()
+[    ] Give the sample proxy a control script to stop and restart it.
 [    ] Implement APOP authentication
 [    ] Maybe implement SASL auth?
 [    ] Implement any other extensions that seem useful.
 [    ] Stabilize these modules and put them in maintenance mode, especially Net::Server::POP3
-[    ] Implement Net::Server::IMAP
+[    ] Implement Net::Server::IMAP if someone hasn't already done so.
 [    ] Integrate Net::Server::IMAP into the proxy.
 [    ] Work on better filtering/sorting plugins for the proxy.
 [    ] Port it all over to Perl6 when the time comes.
 [    ] Get involved with the design of Perl7.
-[    ] Implement an operating system entirely in pure Perl.
+[    ] Implement an operating system entirely in pure Perl, complete
+       with filesystem, GUI, standard widgets, window manager, et cetera.
 [    ] Develop an architecture that embeds the Perl engine in hardware.
 [    ] Smack upside the head anyone who reads this far down the list.
