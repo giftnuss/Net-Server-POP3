@@ -4,15 +4,16 @@
 # t/003_simpletest.t - attempt to test simple functionality, but only
 # if Mail::POP3Client is available; otherwise, skip these tests.
 
-use Test::More tests => 6;
+use Test::More tests => 7;
 
 BEGIN {
-  use_ok( 'Net::Server::POP3' );
-  use_ok( 'Cwd' ) or diag "Second-edition Camel says Cwd is core, but it's not installed?  (Net::Server::POP3 doesn't actually need Cwd; only the test uses it; but how old is your perl?)";
+  use_ok( 'Net::Server::POP3' ); # 1
+  use_ok( 'Cwd' ) # 2
+    or diag "Second-edition Camel says Cwd is core, but it's not installed?  (Net::Server::POP3 doesn't actually need Cwd; only the test uses it; but how old is your perl?)";
 }
 
 my $server = Net::Server::POP3->new();
-isa_ok ($server, 'Net::Server::POP3');
+isa_ok ($server, 'Net::Server::POP3'); # 3
 
 my $continue = 0; {
   my ($originaldirectory) = cwd() =~ /(.*)/; # Should be safe to
@@ -28,6 +29,8 @@ my $continue = 0; {
   }
   chdir $originaldirectory;
 } # Throw out those stale lexicals; $continue is all we need:
+
+# We've done 3 tests so far...
 
 SKIP: {
   skip "Mail::POP3Client does not appear to be installed.  (This is okay; Net::Server::POP3 will work fine without it; we only wanted it for testing.)",

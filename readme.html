@@ -509,6 +509,19 @@ over, that would be great; otherwise, I may try to get to it
 eventually, but for now it's several items down the Todo list.
 
 </DD>
+<DT><A NAME="character%20handling">character handling
+
+</A></DT>
+<DD>
+My code all assumes that each character is stored in one byte.  I
+suspect most mail servers do this, but if your code that uses the
+module produces any Unicode strings, this could make issues.  The
+sample proxy modules are naively assuming that Mail::POP3Client
+returns strings with octet symantics; I do not know whether this is
+actually the case.  At minimum, this could cause the sizes of the
+messages to be reported incorrectly (e.g. by LIST).
+
+</DD>
 <DT><A NAME="Caveat%20user">Caveat user
 
 </A></DT>
@@ -577,10 +590,10 @@ Net::Server::POP3.
 <P><A HREF="http://search.cpan.org/search?query=Mail::POP3Client">Mail::POP3Client</A>
 
 </P>
-<P><A HREF="http://search.cpan.org/src/JONADAB/Net-Server-POP3-0.0007/scripts/simpletest.pl">simpletest.pl</A>
+<P><A HREF="http://search.cpan.org/src/JONADAB/Net-Server-POP3-0.0008/scripts/simpletest.pl">simpletest.pl</A>
 
 </P>
-<P><A HREF="http://search.cpan.org/src/JONADAB/Net-Server-POP3-0.0007/scripts/proxytest.pl">proxytest.pl</A>
+<P><A HREF="http://search.cpan.org/src/JONADAB/Net-Server-POP3-0.0008/scripts/proxytest.pl">proxytest.pl</A>
 
 </P>
 <P>For a more minimalist framework with a different interface, see

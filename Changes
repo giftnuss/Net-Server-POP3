@@ -2,14 +2,29 @@ Revision history for Perl module Net::Server::POP3
 
 * denotes changes that break backward compatibility.
 
-0.0007
+0.0008    2004 May 25
+        - That more involved proxy I wanted to write is in
+          progress, but complete and not included yet.
+          Hopefully in a few releases I'll be able to
+          include at least a tentative version of it.
+        - linetimeout may now be passed to startserver or new
+          to change the line timeout.  Default is the same as
+          the old value.  See the documentation.
+        - Updated the POD some more, including the BUGS section.
+        - Whose bright idea was it to write tests?  I find more bugs
+          in the tests than in the code!  Fixed another one in
+          t/003_simpletest.t, this time a test miscount.  Maybe
+          I should write tests for the tests.</rimshot>
+0.0007    2004 May 22
         - t/003_simpletest.t, was blowing up under taint mode on some
-          systems on the chdir back to $originaldirectory If it's
+          systems on the chdir back to $originaldirectory   If it's
           unsafe to change back to the original current directory,
           someone explain why, otherwise I've untainted it.  Kudos to
           the CPAN testers for making me aware of this issue.
-        - Added REQUIRES section to the POD.
+        - Added REQUIRES section to the POD.  (Does CPAN.pm look
+          at this?)
 0.0006    2004 May 19
+        - Included a couple of basic tests.
         - EOL can now be passed to new() or startserver() at runtime,
           so that editing POP3.pm is not necessary just to change
           $EOL.  (I still need to actually _fix_ this bug...)

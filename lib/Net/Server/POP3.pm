@@ -17,7 +17,7 @@ my $EOL = "\n"; # Change to "\r\n" if you don't get a full CRLF from
 BEGIN {
 	use Exporter ();
 	use vars qw ($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
-	$VERSION     = 0.0007;
+	$VERSION     = 0.0008;
 	@ISA         = qw (Exporter);
 	@EXPORT      = qw ();
 	@EXPORT_OK   = qw (startserver op user);
@@ -38,10 +38,15 @@ sub startserver {
   $op{delete}       ||= \&nop; # It is strongly recommended to provide a delete callback.
   $op{connect}      ||= \&nop;
   $op{disconnect}   ||= \&nop;
-  $op{welcome}      ||= "Welcome to my Test POP3 Server.  Some stuff does not work yet.";
-  warn "WARNING: The welcome message is longer than 506 bytes in violation of RFC1939.\n" if length $op{welcome} > 506;
-  $EOL   = $op{EOL}   if $op{EOL}; # This is a kludge until I figure out how to autodetect what value is needed.
-  $debug = $op{DEBUG} if $op{DEBUG};
+  $op{welcome}      ||= "Welcome to Net::Server::POP3 $VERSION.  Some stuff may not work yet.";
+  warn "WARNING: The welcome message is longer than 506 bytes in violation of RFC 1939.\n" if length $op{welcome} > 506;
+  $op{linetimeout}  ||= 600;
+  $EOL = $op{EOL} if exists $op{EOL};       # Should be either "\n" or "\r\n",
+                                            # depending on something
+                                            # system-dependent that I haven't
+                                            # yet nailed down.
+  $debug = $op{DEBUG} if exists $op{DEBUG}; # Default is 0, but calling code can
+                                            # set it to undef if desired.
 
   exists $op{list} or die "The list callback is required."; # Should these croak instead of die?
   exists $op{retrieve} or die "The retrieve callback is required.";
@@ -90,10 +95,7 @@ sub process_request { # The name of this sub is magic for Net::Server.
       print "+OK $op{welcome}$EOL";
 
       local $SIG{ALRM} = sub { die "Timed Out!\n" };
-      my $timeout = 600; # give the user this many seconds to type a
-                         # line My reading of RFC1939 is that this
-                         # shouldn't be less than ten minutes (at
-                         # least, between commands).
+      my $timeout = $op{linetimeout};
 
       my $previous_alarm = alarm($timeout);
       my $state = 0; # 0 = not authenticated.  1 = authenticated.
@@ -614,6 +616,17 @@ for debugging sample scripts.)
 
 The DEBUG level is optional.  The default is 0.
 
+=item linetimeout
+
+Give the mail client (or user) this many seconds to type or send each
+line.  My reading of RFC1939 is that this shouldn't be less than ten
+minutes (at least, between commands), but Net::Server::POP3 does not
+enforce this minimum.
+
+The linetimeout is optional.  The default is currently 600 (ten
+minutes), the minimum specified by the RFC.  The default value may
+change in a future version.
+
 =back
 
 =head1 REQUIRES
@@ -627,13 +640,14 @@ Net::Server, Exporter
 =item line endings
 
 Depending on your platform and possibly your perl version, you might
-need to change $EOL to "\r\n" instead of "\n".  However, if your perl
-version already handles this the way mine does (Linux Mandrake 9.2),
-changing it to "\r\n" will break it, resulting in the mail client only
-seeing the first header you send as a header and viewing the rest of
-the headers as part of the body, which is ugly; in that case you
-should use "\n".  You can now pass an EOL parameter to new or to
-startserver for this, until I figure out how to fix it for real.
+need to set the EOL to "\r\n" instead of the default "\n".  However,
+if your perl version already handles this the way mine does (Linux
+Mandrake 9.2), setting it to "\r\n" will break it, resulting in the
+mail client only seeing the first header you send as a header and
+viewing the rest of the headers as part of the body, which is ugly; in
+that case you should use "\n".  You can now pass an EOL parameter to
+new or to startserver for this, until I figure out how to fix it for
+real.  The default is "\n" if you don't specify.
 
 =item client IP address
 
@@ -669,6 +683,16 @@ include this warning that it has not been considered.  If someone who
 actually has experience with threaded programming wants to look it
 over, that would be great; otherwise, I may try to get to it
 eventually, but for now it's several items down the Todo list.
+
+=item character handling
+
+My code all assumes that each character is stored in one byte.  I
+suspect most mail servers do this, but if your code that uses the
+module produces any Unicode strings, this could make issues.  The
+sample proxy modules are naively assuming that Mail::POP3Client
+returns strings with octet symantics; I do not know whether this is
+actually the case.  At minimum, this could cause the sizes of the
+messages to be reported incorrectly (e.g. by LIST).
 
 =item Caveat user
 
@@ -723,9 +747,9 @@ L<Net::Server|http://search.cpan.org/search?query=Net::Server>
 
 L<Mail::POP3Client|http://search.cpan.org/search?query=Mail::POP3Client>
 
-L<simpletest.pl|http://search.cpan.org/src/JONADAB/Net-Server-POP3-0.0007/scripts/simpletest.pl>
+L<simpletest.pl|http://search.cpan.org/src/JONADAB/Net-Server-POP3-0.0008/scripts/simpletest.pl>
 
-L<proxytest.pl|http://search.cpan.org/src/JONADAB/Net-Server-POP3-0.0007/scripts/proxytest.pl>
+L<proxytest.pl|http://search.cpan.org/src/JONADAB/Net-Server-POP3-0.0008/scripts/proxytest.pl>
 
 For a more minimalist framework with a different interface, see
 L<Net::Server::POP3::Skeleton|http://perlmonks.org/index.pl?node_id=342754>

@@ -312,6 +312,15 @@ BUGS
         it over, that would be great; otherwise, I may try to get to it
         eventually, but for now it's several items down the Todo list.
 
+    character handling
+        My code all assumes that each character is stored in one byte. I
+        suspect most mail servers do this, but if your code that uses the
+        module produces any Unicode strings, this could make issues. The
+        sample proxy modules are naively assuming that Mail::POP3Client
+        returns strings with octet symantics; I do not know whether this is
+        actually the case. At minimum, this could cause the sizes of the
+        messages to be reported incorrectly (e.g. by LIST).
+
     Caveat user
         There may be other bugs as well; this is not release-quality code
         yet. Significant changes may be made to the code interface before
