@@ -135,15 +135,29 @@ are planned for an eventual future version.
 <DD>
 
 <P>A string containing the characters that should be printed on a socket
-to cause perl to emit an RFC-compliant CRLF.  On some systems this may
-need to be set to &quot;\r\n&quot;.  The default is &quot;\n&quot;, which is what it needs
-to be on my development platform (Linux Mandrake 9.2).  Setting it to
-the wrong thing causes breakage either way, so experiment.  (Fixing
-this to Just Work(TM) on all systems is on the Todo list.)
+to cause perl to emit an RFC-compliant CRLF.  The new default is
+&quot;\015\012&quot;, which theoretically should work perfectly everywhere, from
+what I have read, but if you get mangled newlines, this may be why.
+This new default needs testing on as many platforms as possible to
+ensure that it is, in fact, correct everywhere.
 
 </P>
-<P>The EOL string is optional; you only need to specify it if &quot;\n&quot; is the
-wrong value.
+<P>The default used to be &quot;\n&quot;, which worked on my development platform
+(Linux Mandrake 9.2).  On some systems this needed to be set to
+&quot;\r\n&quot;.  Setting it to the wrong thing caused breakage either way.  If
+the default doesn't work for you, experiment.  If you set it to &quot;\r\n&quot;
+on systems where &quot;\n&quot; will work, you get extraneous ^M characters on
+the ends of all the lines at the recieving end, which among other
+things can cause most of the headers not to be recognized as such and
+instead to be displayed in the body, depending on the mail client.
+Going the other way, if you set it to &quot;\n&quot; on platforms where &quot;\r\n&quot;
+would work correctly, the whole thing may just not work at all, or
+other weirdness may ensue, such as the entire message (headers, body,
+and all) appearing on one line.
+
+</P>
+<P>The EOL string is optional; you only need to specify it if the default
+is the wrong value.
 
 </P></DD>
 <DT><A NAME="port">port
@@ -435,6 +449,22 @@ for debugging sample scripts.)
 <P>The DEBUG level is optional.  The default is 0.
 
 </P></DD>
+<DT><A NAME="linetimeout">linetimeout
+
+</A></DT>
+<DD>
+
+<P>Give the mail client (or user) this many seconds to type or send each
+line.  My reading of RFC1939 is that this shouldn't be less than ten
+minutes (at least, between commands), but Net::Server::POP3 does not
+enforce this minimum.
+
+</P>
+<P>The linetimeout is optional.  The default is currently 600 (ten
+minutes), the minimum specified by the RFC.  The default value may
+change in a future version.
+
+</P></DD>
 </DL>
 <H1><A NAME="REQUIRES">REQUIRES
 
@@ -445,26 +475,15 @@ for debugging sample scripts.)
 </P><H1><A NAME="BUGS">BUGS
 
 </A></H1>
-<DL><DT><A NAME="line%20endings">line endings
+<DL><DT><A NAME="DEBUG%20makes%20authentication%20fail">DEBUG makes authentication fail
 
 </A></DT>
 <DD>
-Depending on your platform and possibly your perl version, you might
-need to change $EOL to &quot;\r\n&quot; instead of &quot;\n&quot;.  However, if your perl
-version already handles this the way mine does (Linux Mandrake 9.2),
-changing it to &quot;\r\n&quot; will break it, resulting in the mail client only
-seeing the first header you send as a header and viewing the rest of
-the headers as part of the body, which is ugly; in that case you
-should use &quot;\n&quot;.  You can now pass an EOL parameter to new or to
-startserver for this, until I figure out how to fix it for real.
-
-</DD>
-<DT><A NAME="client%20IP%20address">client IP address
-
-</A></DT>
-<DD>
-The authenticate callback was not passed the client's IP address as
-documented, but I think this is fixed now.
+This is really bad, and I hope to fix it very soon.  My apologies to
+anyone who has been bitten by this.  The gplproxy example has
+uncovered a bug wherein passing a nonzero value for DEBUG to new (or
+probably also startserver) causes authentication to fail.  Fixing this
+will be top priority for the next release.
 
 </DD>
 <DT><A NAME="APOP%20is%20not%20implemented%20yet.">APOP is not implemented yet.
@@ -522,6 +541,34 @@ actually the case.  At minimum, this could cause the sizes of the
 messages to be reported incorrectly (e.g. by LIST).
 
 </DD>
+<DT><A NAME="client%20IP%20address">client IP address
+
+</A></DT>
+<DD>
+The authenticate callback was not passed the client's IP address as
+documented, but I think this is fixed now.
+
+</DD>
+<DT><A NAME="line%20endings">line endings
+
+</A></DT>
+<DD>
+
+<P>I think the new default value for EOL fixes this bug, but I'm
+leaving the old information here until I confirm that:
+
+</P>
+<P>Depending on your platform and possibly your perl version, you might
+need to set the EOL to &quot;\r\n&quot; instead of the default &quot;\n&quot;.  However,
+if your perl version already handles this the way mine does (Linux
+Mandrake 9.2), setting it to &quot;\r\n&quot; will break it, resulting in the
+mail client only seeing the first header you send as a header and
+viewing the rest of the headers as part of the body, which is ugly; in
+that case you should use &quot;\n&quot;.  You can now pass an EOL parameter to
+new or to startserver for this, until I figure out how to fix it for
+real.  The default is &quot;\n&quot; if you don't specify.
+
+</P></DD>
 <DT><A NAME="Caveat%20user">Caveat user
 
 </A></DT>
@@ -590,10 +637,13 @@ Net::Server::POP3.
 <P><A HREF="http://search.cpan.org/search?query=Mail::POP3Client">Mail::POP3Client</A>
 
 </P>
-<P><A HREF="http://search.cpan.org/src/JONADAB/Net-Server-POP3-0.0008/scripts/simpletest.pl">simpletest.pl</A>
+<P><A HREF="http://search.cpan.org/src/JONADAB/Net-Server-POP3-0.0009/scripts/simpletest.pl">simpletest.pl</A>
 
 </P>
-<P><A HREF="http://search.cpan.org/src/JONADAB/Net-Server-POP3-0.0008/scripts/proxytest.pl">proxytest.pl</A>
+<P><A HREF="http://search.cpan.org/src/JONADAB/Net-Server-POP3-0.0009/scripts/proxytest.pl">proxytest.pl</A>
+
+</P>
+<P><A HREF="http://search.cpan.org/src/JONADAB/Net-Server-POP3-0.0009/scripts/gplproxy.pl">gplproxy.pl</A>
 
 </P>
 <P>For a more minimalist framework with a different interface, see

@@ -12,6 +12,7 @@ These are in roughly the order they need to be done in.
 [    ] Solicit help.
 [done] Make servertype work
 [done] Pass the client's IP address to the authenticate callback.
+[    ] Fix that known bug
 [    ] Add a test in t/ that actually tests the module by using Mail::POP3Client.
 [    ] Implement response codes from RFC 2449
 [    ] Implement storage and continual retrieval in the sample proxy

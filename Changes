@@ -1,7 +1,21 @@
 Revision history for Perl module Net::Server::POP3
 
-* denotes changes that break backward compatibility.
+* denotes changes that are known to break backward compatibility.
+- denotes changes that (theoretically) shouldn't do so.
 
+0.0009
+        - Changed the default EOL to a value that I think should
+          be correct on all platforms (needs testing)
+        - Included the (still in-progress) gplproxy example in the
+          distribution.
+        - Improvements to the gplproxy example, including the ability
+          to use MySQL as the backend (since SQLite showed signs of
+          distress trying to handle several days' worth of my rather
+          active mail account) and a hook function to allow some
+          users' mail to not be polled.
+        - Fixed some bugs in the gplproxy example.
+        - Documented a bug in Net::Server::POP3 that was uncovered by
+          testing with the gplproxy example.
 0.0008    2004 May 25
         - That more involved proxy I wanted to write is in
           progress, but complete and not included yet.

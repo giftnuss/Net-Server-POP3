@@ -8,16 +8,20 @@ my %parameters; my @message; my @deleted;
 my $debug = 0;  # Set this to 1 to generate more debugging info.
 #use Data::Dumper; $|++; # Uncomment this stuff for debugging.
 
-my $EOL = "\n"; # Change to "\r\n" if you don't get a full CRLF from
-                # "\n".  I'm investigating how to fix this so it works
-                # on all versions of perl on all platforms.
-                # Meanwhile, you can also pass EOL to new() or
-                # startserver() and it will change this default.
+#my $EOL = "\n"; # Change to "\r\n" if you don't get a full CRLF from
+#                # "\n".  I'm investigating how to fix this so it works
+#                # on all versions of perl on all platforms.
+#                # Meanwhile, you can also pass EOL to new() or
+#                # startserver() and it will change this default.
+
+my $EOL = "\015\012"; # I have reason to believe this is definitively
+                      # correct for all platforms and all Perl
+                      # versions, but it needs testing.
 
 BEGIN {
 	use Exporter ();
 	use vars qw ($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
-	$VERSION     = 0.0008;
+	$VERSION     = 0.0009;
 	@ISA         = qw (Exporter);
 	@EXPORT      = qw ();
 	@EXPORT_OK   = qw (startserver op user);
@@ -399,14 +403,27 @@ are planned for an eventual future version.
 =item EOL
 
 A string containing the characters that should be printed on a socket
-to cause perl to emit an RFC-compliant CRLF.  On some systems this may
-need to be set to "\r\n".  The default is "\n", which is what it needs
-to be on my development platform (Linux Mandrake 9.2).  Setting it to
-the wrong thing causes breakage either way, so experiment.  (Fixing
-this to Just Work(TM) on all systems is on the Todo list.)
+to cause perl to emit an RFC-compliant CRLF.  The new default is
+"\015\012", which theoretically should work perfectly everywhere, from
+what I have read, but if you get mangled newlines, this may be why.
+This new default needs testing on as many platforms as possible to
+ensure that it is, in fact, correct everywhere.
 
-The EOL string is optional; you only need to specify it if "\n" is the
-wrong value.
+The default used to be "\n", which worked on my development platform
+(Linux Mandrake 9.2).  On some systems this needed to be set to
+"\r\n".  Setting it to the wrong thing caused breakage either way.  If
+the default doesn't work for you, experiment.  If you set it to "\r\n"
+on systems where "\n" will work, you get extraneous ^M characters on
+the ends of all the lines at the recieving end, which among other
+things can cause most of the headers not to be recognized as such and
+instead to be displayed in the body, depending on the mail client.
+Going the other way, if you set it to "\n" on platforms where "\r\n"
+would work correctly, the whole thing may just not work at all, or
+other weirdness may ensue, such as the entire message (headers, body,
+and all) appearing on one line.
+
+The EOL string is optional; you only need to specify it if the default
+is the wrong value.
 
 =item port
 
@@ -637,22 +654,13 @@ Net::Server, Exporter
 
 =over
 
-=item line endings
+=item DEBUG makes authentication fail
 
-Depending on your platform and possibly your perl version, you might
-need to set the EOL to "\r\n" instead of the default "\n".  However,
-if your perl version already handles this the way mine does (Linux
-Mandrake 9.2), setting it to "\r\n" will break it, resulting in the
-mail client only seeing the first header you send as a header and
-viewing the rest of the headers as part of the body, which is ugly; in
-that case you should use "\n".  You can now pass an EOL parameter to
-new or to startserver for this, until I figure out how to fix it for
-real.  The default is "\n" if you don't specify.
-
-=item client IP address
-
-The authenticate callback was not passed the client's IP address as
-documented, but I think this is fixed now.
+This is really bad, and I hope to fix it very soon.  My apologies to
+anyone who has been bitten by this.  The gplproxy example has
+uncovered a bug wherein passing a nonzero value for DEBUG to new (or
+probably also startserver) causes authentication to fail.  Fixing this
+will be top priority for the next release.
 
 =item APOP is not implemented yet.
 
@@ -693,6 +701,26 @@ sample proxy modules are naively assuming that Mail::POP3Client
 returns strings with octet symantics; I do not know whether this is
 actually the case.  At minimum, this could cause the sizes of the
 messages to be reported incorrectly (e.g. by LIST).
+
+=item client IP address
+
+The authenticate callback was not passed the client's IP address as
+documented, but I think this is fixed now.
+
+=item line endings
+
+I think the new default value for EOL fixes this bug, but I'm
+leaving the old information here until I confirm that:
+
+Depending on your platform and possibly your perl version, you might
+need to set the EOL to "\r\n" instead of the default "\n".  However,
+if your perl version already handles this the way mine does (Linux
+Mandrake 9.2), setting it to "\r\n" will break it, resulting in the
+mail client only seeing the first header you send as a header and
+viewing the rest of the headers as part of the body, which is ugly; in
+that case you should use "\n".  You can now pass an EOL parameter to
+new or to startserver for this, until I figure out how to fix it for
+real.  The default is "\n" if you don't specify.
 
 =item Caveat user
 
@@ -747,9 +775,11 @@ L<Net::Server|http://search.cpan.org/search?query=Net::Server>
 
 L<Mail::POP3Client|http://search.cpan.org/search?query=Mail::POP3Client>
 
-L<simpletest.pl|http://search.cpan.org/src/JONADAB/Net-Server-POP3-0.0008/scripts/simpletest.pl>
+L<simpletest.pl|http://search.cpan.org/src/JONADAB/Net-Server-POP3-0.0009/scripts/simpletest.pl>
 
-L<proxytest.pl|http://search.cpan.org/src/JONADAB/Net-Server-POP3-0.0008/scripts/proxytest.pl>
+L<proxytest.pl|http://search.cpan.org/src/JONADAB/Net-Server-POP3-0.0009/scripts/proxytest.pl>
+
+L<gplproxy.pl|http://search.cpan.org/src/JONADAB/Net-Server-POP3-0.0009/scripts/gplproxy.pl>
 
 For a more minimalist framework with a different interface, see
 L<Net::Server::POP3::Skeleton|http://perlmonks.org/index.pl?node_id=342754>
