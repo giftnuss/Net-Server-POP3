@@ -5,6 +5,7 @@ use Data::Dumper; $|++; # For debugging.  This can eventually be removed, but ri
 use strict;
 my %parameters; my @message; my @deleted;
 
+# These are the RFCs that I know about and intend to implement:
 # http://www.faqs.org/rfcs/rfc1939.html
 # http://www.faqs.org/rfcs/rfc2449.html
 
@@ -230,27 +231,29 @@ sub process_request { # The name of this sub is magic for Net::Server.
               # Most clients won't even try this.
               print "-ERR Cannot find message $msgnum (only ".@message." in drop)\n";
             }
-            } elsif (/^QUIT/i) {
-              my $msgnum = 0;
-              for (@message) {
-                if ($deleted[++$msgnum]) {
-                  if ($op{delete}) {
-                    # Yes, this is optional so that highly minimalistic
-                    # implementations can skip it, but any serious mail
-                    # server will obviously need to supply the delete
-                    # callback.
-                    $op{delete}->($user{name}, $message[$msgnum-1]);
-                  }
+          } elsif (/^QUIT/i) {
+            my $msgnum = 0;
+            for (@message) {
+              if ($deleted[++$msgnum]) {
+                if ($op{delete}) {
+                  # Yes, this is optional so that highly minimalistic
+                  # implementations can skip it, but any serious mail
+                  # server will obviously need to supply the delete
+                  # callback.
+                  $op{delete}->($user{name}, $message[$msgnum-1]);
                 }
               }
-              print "+OK Bye, closing connection...\n";
-              $op{disconnect}->();
-              return 0;
+            }
+            print "+OK Bye, closing connection...\n";
+            $op{disconnect}->();
+            return 0;
           } elsif (/^NOOP/) {
             print "+OK nothing to do.\n";
           } elsif (/^RSET/) {
             @deleted = ();
             print "+OK now no messages are marked for deletion at end of session.\n";
+          } elsif (/^CAPA/) {
+            print capabilities(1); # The 1 indicates we are in the transaction state.
           } else {
             print STDERR "Client said \"$_\" (which I do not understand in the transaction state)\n";
             print "-ERR That must be something I have not implemented yet.\n";
@@ -283,8 +286,9 @@ sub process_request { # The name of this sub is magic for Net::Server.
             }
           } elsif (/^APOP/) {
             print "-ERR APOP/MD5 authentication not yet implemented, try USER/PASS\n";
-          }
-          else {
+          } elsif (/^CAPA/) {
+            print capabilities(0); # The zero means we're not authenticated yet.
+          } else {
             print STDERR "Client said \"$_\" (which I do not understand in the unauthenticated state)\n";
             print "-ERR That must be something I have not implemented yet, or you need to authenticate.\n";
           }
@@ -359,14 +363,15 @@ implemented yet and so neither has restartserver().
 
 =item port
 
-The port number to listen on.  110 is the default.
+The port number to listen on.  110 is the default.  You only need to
+supply a port number if you want to listen on a different port.
 
 =item servertype
 
 A type of server implemented by Net::Server (q.v.)  The default is
 'Fork', which is suitable for installations with a small number of
-users.  At the time of this writing, this option is ignored and
-Net::Server::Fork is used, but a future version should fix this.
+users.  You only need to supply a servertype if you want to use a
+different type other than 'Fork'.
 
 =item serveropts
 
@@ -374,18 +379,26 @@ A hashref containing extra named arguments to pass to Net::Server.
 Particularly recommended for security reasons are user, group, and
 chroot.  See the docs for Net::Server for more information.
 
+The serveropts hashref is optional.  You only need to supply it if you
+have optional arguments to pass through to Net::Server.
+
 =item connect
 
-An optional callback that, if supplied, will be called when a client
-connects.  This is the recommended place to allocate resources such as
-a database connection handle.
+This callback, if supplied, will be called when a client connects.
+This is the recommended place to allocate resources such as a database
+connection handle or a lock on the maildrop.
+
+The connect callback is optional; you only need to supply it if you
+have setup to do when a client connects.
 
 =item disconnect
 
-This optional callback, if supplied, is called when the client
-disconnects.  If there is any cleanup to do, this is the place to do
-it.  Note that message deletion is not handled here, but in the delete
-callback.
+This callback, if supplied, is called when the client disconnects.  If
+there is any cleanup to do, this is the place to do it.  Note that
+message deletion is not handled here, but in the delete callback.
+
+The disconnect callback is optional; you only need to supply it if you
+have cleanup to do when a client disconnects.
 
 =item authenticate
 
@@ -393,8 +406,14 @@ The authenticate callback is passed a username, password, and IP
 address.  If the username and password are valid and the user is
 allowed to connect from that address and authenticate by the USER/PASS
 method, then the callback should try to get a changelock on the
-mailbox and return true if successful; it must return false if any of
-that fails.
+mailbox and return 1 if successful; it must return something other
+than 1 if any of that fails.  (Returning 0 does not specify the
+details of what went wrong; other values may in future versions have
+particular meanings.)
+
+The authenticate callback is technically optional, but you need to
+supply it if you want any users to be able to log in using the USER
+and PASS commands.
 
 =item apop
 
@@ -406,7 +425,10 @@ greeting and the shared secret for that user, then the callback
 should attempt to lock the mailbox and return true if successful;
 otherwise, return false.
 
-This is not implemented yet.
+The apop callback is only needed if you want to supply APOP
+authentication.
+
+This is not implemented yet, but I plan to implement it.
 
 =item list
 
@@ -416,6 +438,8 @@ will ingore the username, since they will already be locked in to the
 correct mailbox after authentication.  That's fine.  The username is
 passed as a help for minimalist implementations.)
 
+The list callback is required.
+
 =item retrieve
 
 The retrieve callback must accept a valid, authenticated username and
@@ -424,6 +448,8 @@ return the message as a string.  (Most implementations will ingore the
 username, since they will already be locked in to the correct mailbox
 after authentication.  That's fine.  The username is passed as a help
 for minimalist implementations.)
+
+The retrieve callback is required.
 
 =item delete
 
@@ -440,12 +466,61 @@ marking and unmarking for deletion.  When called, it can do whatever
 it wants, such as actually delete the message, archive it permanently,
 mark it as no longer to be given to this specific user, or whatever.
 
+This callback is technically optional, but you'll need to supply one
+if you want to know when to remove messages from the user's maildrop.
+
 =item welcome
 
 This string is used as the welcome string.  It must not be longer than
 507 bytes, for arcane reasons involving RFC1939.  (The length is not
 checked automatically by Net::Server::POP3, though it may be in a
-future version.)
+future version.)  This is optional; a default welcome is supplied.
+
+=item logindelay
+
+If a number is given, it will be announced in the capabilities list as
+the minimum delay (in seconds) between successive logins by the same
+user (which applies to any user).  This does NOT enforce the delay; it
+only causes it to be announced in the capabilities list.  The
+authenticate callback is responsible for enforcement of the delay.
+The delay SHOULD be enforced if it is announced (RFC 2449).
+
+If the delay may vary per user, logindelay should be a callback
+routine.  If the callback is passed no arguments, it is being asked
+for the maximum delay for all users; if it is passed an argument, this
+will be a valid, authenticated username and the callback should return
+the delay for that particular user.  Either way, the return value
+should be a number of seconds.  Again, this does NOT enforce the
+delay; it only causes it to be announced in the capabilities list.
+(Some clients may not even ask for the capabilities list, if they do
+not implement POP3 Extensions (RFC 2449).)
+
+The default is not to announce any particular delay.
+
+=item expiretime
+
+If a number or the string 'NEVER' is given, it will be announced in
+the capabilities list as the length of time a message may remain on
+the server before it expires and may be automatically deleted by the
+server.  (The number is a number of days.)
+
+This does NOT actually delete anything; it just announces the
+timeframe to the client.  Clients that do not support POP3 Extensions
+will not get this announcement.  'NEVER' means the server will never
+expire messages; 0 means that expiration is immanent and the client
+should not count on leaving messages on the server.  0 should be
+announced for example if the mere act of retrieving a message may
+cause it to expire shortly afterward.
+
+If the message expiration time may vary by user, expiretime should be
+a callback routine.  If the callback is passed no arguments, it is
+being asked for the minimum expiration time for all users, which it
+should return (as a whole number of days; 0 is acceptable); if it is
+passed an argument, this will be a valid, authenticated username and
+the callback should return the expiration time for this particular
+user, either as a whole number of days or the string 'NEVER'.
+
+The default is not to announce an expiration time.
 
 =back
 
@@ -523,6 +598,44 @@ sub new
   return ($self);
 }
 
+sub capabilities {
+  my ($state) = @_; # 1 for transaction state, 0 for no.
+  my $response = "+OK capability list follows.";
+  my @capa = (
+              'TOP',
+              'USER',
+              # 'SASL mechanisms', # SASL auth is specified in a separate RFC someplace.
+              # 'RESP-CODES', # Response codes as specified in RFC 2449.
+              # 'PIPELINING', # I *think* this should Just Work(TM), given the way Perl handles sockets, but I'm NOT sure, so I'm leaving this turned off for now.
+              'UIDL',
+              "IMPLEMENTATION Net::Server::POP3 version_$VERSION",
+             );
+  if (exists $op{logindelay}) {
+    if (ref $op{logindelay}) { # It's a callback; the actual delay can vary by user...
+      my $delay; if ($state) { # Transaction state.  Get the value for *this* user:
+        $delay = $op{logindelay}->($user{name});
+      } else { # Authentication state.  Get the max value for all users:
+        $delay = ($op{logindelay}->() . " USER"); }
+      push @capa, "LOGIN-DELAY $delay"
+    } else { # A number:  it must be the same number for all users:
+      push @capa, "LOGIN-DELAY $op{logindelay}"
+    }
+  }
+  if (exists $op{expiretime}) {
+    if (ref $op{expiretime}) { # It's a callback; the actual time can vary by user...
+      my $expire; if ($state) { # Get the value for *this* user:
+        $expire = $op{expiretime}->($user{name});
+      } else { # We're not authenticated:  get the min value for all users:
+        $expire = ($op{expiretime}->() . " USER");
+      }
+      push @capa, "EXPIRE $expire";
+    } else { # It's the same number for all users:
+      push @capa, "EXPIRE $op{expiretime}";
+    }
+  }
+  return "$response\n".
+    (join "\n", @capa).".\n";
+}
 
 42; #this line is important and will help the module return a true value
 __END__
