@@ -2,6 +2,22 @@ Revision history for Perl module Net::Server::POP3
 
 * denotes changes that break backward compatibility.
 
+0.0006    2004 May 19
+        - EOL can now be passed to new() or startserver() at runtime,
+          so that editing POP3.pm is not necessary just to change
+          $EOL.  (I still need to actually _fix_ this bug...)
+        - DEBUG can also be passed to new() or startserver() to set
+          the desired level of debug output at runtime.
+        - The client's IP address is now passed to the authenticate
+          callback, as documented.
+        - Various improvements to the POD, for consistency and
+          accuracy and clarity.  I think the bug list now has
+          everything I know about.  The description now actually
+          describes what the module does, in addition to warning
+          that the code is not release quality.  Also, I've labelled
+          the code "beta" rather than "alpha" although there are still
+          sundry things unimplemented.
+        - Updated the Todo list (woo).
 0.0005    2004 April 05
         * The size callback is now passed the username and the message
           id, for consistency with the other callbacks.  Note that

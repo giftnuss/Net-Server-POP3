@@ -15,10 +15,22 @@ SYNOPSIS
       $server->startserver();
 
 DESCRIPTION
-    This is alpha code. That means it needs work and doesn't yet implement
-    everything it should. Don't use it unless you don't mind fixing up the
-    parts that you find need fixing up. Lots of parts still need fixing. You
-    have been warned.
+    Net::Server::POP3 is intended to handle the nitty-gritty details of
+    talking to mail clients, so that in writing a custom POP3 server you
+    don't have to actually read RFC documents. The backend things (such as
+    where mail comes from and what messages are in the user's mailbox at any
+    given time) are left up to your code (or another module), but this
+    module handles the POP3 protocol for you. Also, the details of listening
+    for client connections and so on are handled by Net::Server.
+
+    This approach allows for some flexibility. Your code may choose to
+    generate messages on the fly, proxy them from another mail server,
+    retrieve them from a local maildir or mailbox of some kind, or whatever.
+    See the sample scripts in this distribution for examples.
+
+    This code is still very much beta. There are known bugs. Some things
+    (e.g., APOP) haven't even been implemented yet. You have been warned.
+    See the Bugs section for details.
 
     The code as it stands now works, for some definition of "works". With
     the included simpletest.pl script I have successfully served test
@@ -29,8 +41,10 @@ DESCRIPTION
     It is strongly recommended to run with Taint checking enabled.
 
     These are the RFCs that I know about and intend to implement:
+
     http://www.faqs.org/rfcs/rfc1939.html
     http://www.faqs.org/rfcs/rfc2449.html
+    If you know of any other RFCs that seem pertinent, let me know.
 
 USAGE
     This module is designed to be the server/daemon itself and so to handle
@@ -48,17 +62,31 @@ USAGE
     has not been implemented yet and so neither has restartserver(), but
     they are planned for an eventual future version.
 
+    EOL A string containing the characters that should be printed on a
+        socket to cause perl to emit an RFC-compliant CRLF. On some systems
+        this may need to be set to "\r\n". The default is "\n", which is
+        what it needs to be on my development platform (Linux Mandrake 9.2).
+        Setting it to the wrong thing causes breakage either way, so
+        experiment. (Fixing this to Just Work(TM) on all systems is on the
+        Todo list.)
+
+        The EOL string is optional; you only need to specify it if "\n" is
+        the wrong value.
+
     port
-        The port number to listen on. 110 is the default. You only need to
-        supply a port number if you want to listen on a different port. The
-        user or group you are running as needs permission to listen on this
-        port.
+        The port number to listen on. 110 is the default. The user or group
+        you are running as needs permission to listen on this port.
+
+        The port number is optional. You only need to specify it if you want
+        to listen on a different port than 110.
 
     servertype
         A type of server implemented by Net::Server (q.v.) The default is
         'Fork', which is suitable for installations with a small number of
-        users. You only need to supply a servertype if you want to use a
-        different type other than 'Fork'.
+        users.
+
+        The servertype is optional. You only need to specify it if you want
+        to use a different type other than 'Fork'.
 
     serveropts
         A hashref containing extra named arguments to pass to Net::Server.
@@ -158,24 +186,27 @@ USAGE
         implementations will ingore the username, since they will already be
         locked in to the correct mailbox after authentication. That's fine.
         The username is passed as a help for minimalist implementations.)
-        The callback is only called in cases where the POP3 protocol says
-        the message should actually be deleted. If the connection terminates
-        abnormally before entering the UPDATE state, the callback is not
-        called, so code using this module does not need to concern itself
-        with marking and unmarking for deletion. When called, it can do
-        whatever it wants, such as actually delete the message, archive it
-        permanently, mark it as no longer to be given to this specific user,
-        or whatever.
+
+        The delete callback is only called in cases where the POP3 protocol
+        says the message should actually be deleted. If the connection
+        terminates abnormally before entering the UPDATE state, the callback
+        is not called, so code using this module does not need to concern
+        itself with marking and unmarking for deletion. When called, it can
+        do whatever it wants, such as actually delete the message, archive
+        it permanently, mark it as no longer to be given to this specific
+        user, or whatever.
 
         This callback is technically optional, but you'll need to supply one
         if you want to know when to remove messages from the user's
         maildrop.
 
     welcome
-        This string is used as the welcome string. It must not be longer
-        than 506 bytes, for arcane reasons involving RFC1939. (The length is
-        not checked automatically by Net::Server::POP3, though it may be in
-        a future version.) This is optional; a default welcome is supplied.
+        This string is used as the welcome string sent to the client upon
+        connection. It must not be longer than 506 bytes, for arcane reasons
+        involving RFC1939. (startserver will generate a warning at runtime
+        if it is too long.)
+
+        The welcome string is optional; a default welcome is supplied.
 
     logindelay
         If a number is given, it will be announced in the capabilities list
@@ -201,7 +232,7 @@ USAGE
         If a number or the string 'NEVER' is given, it will be announced in
         the capabilities list as the length of time a message may remain on
         the server before it expires and may be automatically deleted by the
-        server. (The number is a number of days.)
+        server. (The number is a whole number of days.)
 
         This does NOT actually delete anything; it just announces the
         timeframe to the client. Clients that do not support POP3 Extensions
@@ -221,23 +252,79 @@ USAGE
 
         The default is not to announce an expiration time.
 
+    DEBUG
+        Set the level of debugging information desired on standard output.
+        undef means no debug info at all. 0 means only warn when the client
+        uses commands that are not understood. A value of 1 produces various
+        other information about functions that are being called, arguments
+        they are passed, and so on. A value of 2 also uses Data::Dumper to
+        show the state of certain data structures at various times, possibly
+        including entire messages, possibly more than once per message. This
+        can get really verbose. A value of 3 is even more verbose and really
+        doesn't add anything for debugging your code. (Level 3 is intended
+        for debugging the module itself. Actually, all of it was mainly
+        intended for that originally, but the lower levels also proved
+        useful for debugging sample scripts.)
+
+        The DEBUG level is optional. The default is 0.
+
 BUGS
-    Some things are just plain not implemented yet. The UIDL implementation
-    uses the message-id as the unique id, rather than calculating a hash as
-    suggested by RFC 1939. In practice, this seems to be what my ISP's mail
-    server does (it calls itself InterMail), which has worked with every
-    client I've thrown at it, so it should be mostly okay, but it's not
-    strictly up to spec I think and may be changed in a later version. There
-    may be other bugs as well; this is very alpha stuff. Significant changes
-    may be made to the code interface before release quality is reached, so
-    if you use this module now you may have to change your code when you
-    upgrade. Caveat user.
+    line endings
+        Depending on your platform and possibly your perl version, you might
+        need to change $EOL to "\r\n" instead of "\n". However, if your perl
+        version already handles this the way mine does (Linux Mandrake 9.2),
+        changing it to "\r\n" will break it, resulting in the mail client
+        only seeing the first header you send as a header and viewing the
+        rest of the headers as part of the body, which is ugly; in that case
+        you should use "\n". You can now pass an EOL parameter to new or to
+        startserver for this, until I figure out how to fix it for real.
+
+    client IP address
+        The authenticate callback was not passed the client's IP address as
+        documented, but I think this is fixed now.
+
+    APOP is not implemented yet.
+    stopserver and restartserver are not implemented
+        For now, the only way to stop the server is to kill it. Actually,
+        this may not be true; I'm still investigating this stuff about the
+        Net::Server module.
+
+    UIDL
+        The UIDL implementation uses the message-id as the unique id, rather
+        than calculating a hash as suggested by RFC 1939. In practice, this
+        seems to be what my ISP's mail server does (it calls itself
+        InterMail), which has worked with every client I've thrown at it, so
+        it should be mostly okay, but it's not strictly up to spec I think
+        and may be changed in a later version. I intend to investigate what
+        other major POP3 servers do in this regard before making any
+        changes; if you happen to know e.g. what the POP3 servers do that
+        are usually used with Postfix, Exim, or Qmail, et cetera, drop me a
+        line and let me know. Data about what the POP3 servers used by
+        various ISPs do would also be appreciated.
+
+    threads
+        The issue of thread safety has not even been considered, other than
+        to include this warning that it has not been considered. If someone
+        who actually has experience with threaded programming wants to look
+        it over, that would be great; otherwise, I may try to get to it
+        eventually, but for now it's several items down the Todo list.
+
+    Caveat user
+        There may be other bugs as well; this is not release-quality code
+        yet. Significant changes may be made to the code interface before
+        release quality is reached, so if you use this module now you may
+        have to change your code when you upgrade.
+
+        The Todo list is long, and contributions are welcome, especially
+        code but also documentation, sample scripts, or other information
+        such as how the module works with various clients, what platforms
+        and perl versions need which setting for EOL (and how to determine
+        this at runtime), what POP3 servers do what for the UIDL, ...
 
 SUPPORT
     Use the source, Luke. You can also contact the author with questions,
-    but I cannot guarantee that I will be able to answer all of them in a
-    satisfactory fashion. The code is supplied on an as-is basis with no
-    warranty. I will try, but this is spare-time stuff for me.
+    but the code is supplied on an as-is basis with no warranty. I will try
+    to answer any questions, but this is spare-time stuff for me.
 
 AUTHOR
             Jonadab the Unsightly One (Nathan Eady)
@@ -252,9 +339,9 @@ COPYRIGHT
     The full text of the license can be found in the LICENSE file included
     with this module.
 
-    Note that the modules this module uses (such as Net::Server) are covered
-    under their respective license agreements and are not governed by the
-    license of Net::Server::POP3.
+    Note that the modules (such as Net::Server) that are used by this module
+    or by the sample scripts are covered under their respective license
+    agreements and are not governed by the license of Net::Server::POP3.
 
 SEE ALSO
       perl(1)
@@ -263,5 +350,14 @@ SEE ALSO
       The simpletest.pl script included in the scripts directory in this distribution.
       The proxytest.pl script also included in the scripts directory in this distribution.
 
-    Net::Server Mail::POP3Client simpletest.pl proxytest.pl
+    Net::Server
+
+    Mail::POP3Client
+
+    simpletest.pl
+
+    proxytest.pl
+
+    For a more minimalist framework with a different interface, see
+    Net::Server::POP3::Skeleton
 

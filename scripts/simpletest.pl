@@ -23,7 +23,7 @@ my $serv = Net::Server::POP3->new
                 );
      if ($user{$user} eq $pass) {
        if (not @inbox) {
-         push @inbox, newmessage($user);
+         push @inbox, newmessage($user, $ip);
        }
        return 1;
      } else { return 0; }
@@ -57,7 +57,7 @@ my $serv = Net::Server::POP3->new
 my $newmsgnum;
 sub newmessage {
   ++$newmsgnum;
-  my ($username) = @_;
+  my ($username, $ip) = @_;
   my $dt = DateTime->now();
   #my $stamp = sprintf "%04d%02d%02d%02d%02d%02d$username$newmsgnum%07d",
   #  $dt->year(), $dt->month(), $dt->day(), $dt->hour(), $dt->min(), $dt->sec(), int rand 7777777;
@@ -82,6 +82,8 @@ information (well, maybe; anyway, it hopefully wouldn't have
 rambled on like this about being a test).  This is test
 message number $newmsgnum for this test server run.  This
 concludes this test.
+
+Incidentally, your IP address appears to be $ip
 
 -- 
 GCS(M)>AT d+(?) s? a- C+++ UL(-) P+++>++++ L++ E++ W+(-)@

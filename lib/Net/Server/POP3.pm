@@ -1,20 +1,23 @@
 #!/usr/bin/perl -w -T
 # -*- cperl -*-
 package Net::Server::POP3;
-use Data::Dumper; $|++; # For debugging.  This can eventually be removed, but right now I need it.
 use strict;
+
 my %parameters; my @message; my @deleted;
 
-my $debug = 1;  # Set this to undef to suppress debugging info.
+my $debug = 0;  # Set this to 1 to generate more debugging info.
+#use Data::Dumper; $|++; # Uncomment this stuff for debugging.
 
 my $EOL = "\n"; # Change to "\r\n" if you don't get a full CRLF from
                 # "\n".  I'm investigating how to fix this so it works
-                # on all versions of Perl on all platforms.
+                # on all versions of perl on all platforms.
+                # Meanwhile, you can also pass EOL to new() or
+                # startserver() and it will change this default.
 
 BEGIN {
 	use Exporter ();
 	use vars qw ($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
-	$VERSION     = 0.0005;
+	$VERSION     = 0.0006;
 	@ISA         = qw (Exporter);
 	@EXPORT      = qw ();
 	@EXPORT_OK   = qw (startserver op user);
@@ -36,7 +39,9 @@ sub startserver {
   $op{connect}      ||= \&nop;
   $op{disconnect}   ||= \&nop;
   $op{welcome}      ||= "Welcome to my Test POP3 Server.  Some stuff does not work yet.";
-  warn "WARNING: The welcome message is longer than 506 bytes in violation of RFC1939." if length $op{welcome} > 506;
+  warn "WARNING: The welcome message is longer than 506 bytes in violation of RFC1939.\n" if length $op{welcome} > 506;
+  $EOL   = $op{EOL}   if $op{EOL}; # This is a kludge until I figure out how to autodetect what value is needed.
+  $debug = $op{DEBUG} if $op{DEBUG};
 
   exists $op{list} or die "The list callback is required."; # Should these croak instead of die?
   exists $op{retrieve} or die "The retrieve callback is required.";
@@ -198,19 +203,19 @@ sub process_request { # The name of this sub is magic for Net::Server.
             if ($msgnum <= @message) {
               print "+OK sending $msgnum " . $message[$msgnum-1] . "$EOL";
               warn "Sending message $msgnum:\n" if $debug;
-              warn "\@message is as follows: " . Dumper(\@message) . "\n" if $debug;
+              warn "\@message is as follows: " . Dumper(\@message) . "\n" if $debug>1;
               my $msgid = $message[$msgnum-1];
               warn "message id is $msgid\n" if $debug;
               die "No retrieve callback\n" unless ref $op{retrieve};
               my $msg = $op{retrieve}->($user{name}, $msgid);
               warn "Retrieved message\n" if $debug;
               if (not $msg =~ /\n\n/m) {  warn "Message $msgnum ($msgid) seems very wrong:\n$msg\n"; die "Suffering and Pain!\n"; }
-              warn "Message is as follows: " . Dumper($msg) . "\n" if $debug;
+              warn "Message is as follows: " . Dumper($msg) . "\n" if $debug>1;
               for (split /\n/, $msg) {
                 chomp;
                 s/^/./ if /^[.]/;
                 print "$_$EOL";
-                warn "$_\n" if $debug;
+                warn "$_\n" if $debug>2;
               }
               print ".$EOL";
             } else {
@@ -273,11 +278,13 @@ sub process_request { # The name of this sub is magic for Net::Server.
             print "+OK $user{name} knows where his towel is; use PASS to authenticate$EOL";
           } elsif (/^PASS\s*(.*?)\s*$/i) {
             $user{pass} = $1;
+            $user{peer} = $self->{server}->{peeraddr}; # Todo: Fix this to get IP address from Net::Server.
+            $user{peer} = Dumper($self->{server}) if $debug;
             if ($user{name}) {
-              if ($op{authenticate}->(@user{'name','pass'})) { # TODO:  also pass IP addy
+              if ($op{authenticate}->(@user{'name','pass','peer'})) {
                 $state = 1;
                 @message = $op{list}->($user{name});
-                warn "Have maildrop: " . Dumper(\@message) . "\n" if $debug;
+                warn "Have maildrop: " . Dumper(\@message) . "\n" if $debug>1;
                 print "+OK $user{name}'s maildrop has ".@message." messages (".boxsize(@message)." octets)$EOL";
               } else {
                 delete $user{name};
@@ -329,10 +336,22 @@ Net::Server::POP3 - The Server Side of the POP3 Protocol for email
 
 =head1 DESCRIPTION
 
-This is alpha code.  That means it needs work and doesn't yet implement
-everything it should.  Don't use it unless you don't mind fixing up the
-parts that you find need fixing up.  Lots of parts still need fixing.
-You have been warned.
+Net::Server::POP3 is intended to handle the nitty-gritty details of
+talking to mail clients, so that in writing a custom POP3 server you
+don't have to actually read RFC documents.  The backend things (such
+as where mail comes from and what messages are in the user's mailbox
+at any given time) are left up to your code (or another module), but
+this module handles the POP3 protocol for you.  Also, the details of
+listening for client connections and so on are handled by Net::Server.
+
+This approach allows for some flexibility.  Your code may choose to
+generate messages on the fly, proxy them from another mail server,
+retrieve them from a local maildir or mailbox of some kind, or
+whatever.  See the sample scripts in this distribution for examples.
+
+This code is still very much beta.  There are known bugs.  Some things
+(e.g., APOP) haven't even been implemented yet.  You have been warned.
+See the Bugs section for details.
 
 The code as it stands now works, for some definition of "works".  With
 the included simpletest.pl script I have successfully served test
@@ -343,8 +362,17 @@ from an ISP mail server to a client.  However, much remains to be done.
 It is strongly recommended to run with Taint checking enabled.
 
 These are the RFCs that I know about and intend to implement:
-http://www.faqs.org/rfcs/rfc1939.html
-http://www.faqs.org/rfcs/rfc2449.html
+
+=over
+
+=item http://www.faqs.org/rfcs/rfc1939.html
+
+=item http://www.faqs.org/rfcs/rfc2449.html
+
+
+=back
+
+If you know of any other RFCs that seem pertinent, let me know.
 
 =head1 USAGE
 
@@ -366,19 +394,34 @@ are planned for an eventual future version.
 
 =over
 
+=item EOL
+
+A string containing the characters that should be printed on a socket
+to cause perl to emit an RFC-compliant CRLF.  On some systems this may
+need to be set to "\r\n".  The default is "\n", which is what it needs
+to be on my development platform (Linux Mandrake 9.2).  Setting it to
+the wrong thing causes breakage either way, so experiment.  (Fixing
+this to Just Work(TM) on all systems is on the Todo list.)
+
+The EOL string is optional; you only need to specify it if "\n" is the
+wrong value.
+
 =item port
 
-The port number to listen on.  110 is the default.  You only need to
-supply a port number if you want to listen on a different port.  The
-user or group you are running as needs permission to listen on this
-port.
+The port number to listen on.  110 is the default.  The user or group
+you are running as needs permission to listen on this port.
+
+The port number is optional.  You only need to specify it if you want
+to listen on a different port than 110.
 
 =item servertype
 
 A type of server implemented by Net::Server (q.v.)  The default is
 'Fork', which is suitable for installations with a small number of
-users.  You only need to supply a servertype if you want to use a
-different type other than 'Fork'.
+users.
+
+The servertype is optional.  You only need to specify it if you want
+to use a different type other than 'Fork'.
 
 =item serveropts
 
@@ -501,10 +544,12 @@ if you want to know when to remove messages from the user's maildrop.
 
 =item welcome
 
-This string is used as the welcome string.  It must not be longer than
-506 bytes, for arcane reasons involving RFC1939.  (The length is not
-checked automatically by Net::Server::POP3, though it may be in a
-future version.)  This is optional; a default welcome is supplied.
+This string is used as the welcome string sent to the client upon
+connection.  It must not be longer than 506 bytes, for arcane reasons
+involving RFC1939.  (startserver will generate a warning at runtime if
+it is too long.)
+
+The welcome string is optional; a default welcome is supplied.
 
 =item logindelay
 
@@ -552,20 +597,89 @@ user, either as a whole number of days or the string 'NEVER'.
 
 The default is not to announce an expiration time.
 
+=item DEBUG
+
+Set the level of debugging information desired on standard output.
+undef means no debug info at all.  0 means only warn when the client
+uses commands that are not understood.  A value of 1 produces various
+other information about functions that are being called, arguments
+they are passed, and so on.  A value of 2 also uses Data::Dumper to
+show the state of certain data structures at various times, possibly
+including entire messages, possibly more than once per message.  This
+can get really verbose.  A value of 3 is even more verbose and really
+doesn't add anything for debugging your code.  (Level 3 is intended
+for debugging the module itself.  Actually, all of it was mainly
+intended for that originally, but the lower levels also proved useful
+for debugging sample scripts.)
+
+The DEBUG level is optional.  The default is 0.
+
 =back
 
 =head1 BUGS
 
-Some things are just plain not implemented yet.  The UIDL
-implementation uses the message-id as the unique id, rather than
-calculating a hash as suggested by RFC 1939.  In practice, this seems
-to be what my ISP's mail server does (it calls itself InterMail),
-which has worked with every client I've thrown at it, so it should be
-mostly okay, but it's not strictly up to spec I think and may be
-changed in a later version.  There may be other bugs as well; this is
-very alpha stuff.  Significant changes may be made to the code
-interface before release quality is reached, so if you use this module
-now you may have to change your code when you upgrade.  Caveat user.
+=over
+
+=item line endings
+
+Depending on your platform and possibly your perl version, you might
+need to change $EOL to "\r\n" instead of "\n".  However, if your perl
+version already handles this the way mine does (Linux Mandrake 9.2),
+changing it to "\r\n" will break it, resulting in the mail client only
+seeing the first header you send as a header and viewing the rest of
+the headers as part of the body, which is ugly; in that case you
+should use "\n".  You can now pass an EOL parameter to new or to
+startserver for this, until I figure out how to fix it for real.
+
+=item client IP address
+
+The authenticate callback was not passed the client's IP address as
+documented, but I think this is fixed now.
+
+=item APOP is not implemented yet.
+
+=item stopserver and restartserver are not implemented
+
+For now, the only way to stop the server is to kill it.  Actually,
+this may not be true; I'm still investigating this stuff about the
+Net::Server module.
+
+=item UIDL
+
+The UIDL implementation uses the message-id as the unique id, rather
+than calculating a hash as suggested by RFC 1939.  In practice, this
+seems to be what my ISP's mail server does (it calls itself
+InterMail), which has worked with every client I've thrown at it, so
+it should be mostly okay, but it's not strictly up to spec I think and
+may be changed in a later version.  I intend to investigate what other
+major POP3 servers do in this regard before making any changes; if you
+happen to know e.g. what the POP3 servers do that are usually used
+with Postfix, Exim, or Qmail, et cetera, drop me a line and let me
+know.  Data about what the POP3 servers used by various ISPs do would
+also be appreciated.
+
+=item threads
+
+The issue of thread safety has not even been considered, other than to
+include this warning that it has not been considered.  If someone who
+actually has experience with threaded programming wants to look it
+over, that would be great; otherwise, I may try to get to it
+eventually, but for now it's several items down the Todo list.
+
+=item Caveat user
+
+There may be other bugs as well; this is not release-quality code yet.
+Significant changes may be made to the code interface before release
+quality is reached, so if you use this module now you may have to
+change your code when you upgrade.
+
+The Todo list is long, and contributions are welcome, especially code
+but also documentation, sample scripts, or other information such as
+how the module works with various clients, what platforms and perl
+versions need which setting for EOL (and how to determine this at
+runtime), what POP3 servers do what for the UIDL, ...
+
+=back
 
 =head1 SUPPORT
 
@@ -602,9 +716,15 @@ Net::Server::POP3.
   The proxytest.pl script also included in the scripts directory in this distribution.
 
 L<Net::Server|http://search.cpan.org/search?query=Net::Server>
+
 L<Mail::POP3Client|http://search.cpan.org/search?query=Mail::POP3Client>
-L<simpletest.pl|http://search.cpan.org/src/JONADAB/Net-Server-POP3-0.0005/scripts/simpletest.pl>
-L<proxytest.pl|http://search.cpan.org/src/JONADAB/Net-Server-POP3-0.0005/scripts/proxytest.pl>
+
+L<simpletest.pl|http://search.cpan.org/src/JONADAB/Net-Server-POP3-0.0006/scripts/simpletest.pl>
+
+L<proxytest.pl|http://search.cpan.org/src/JONADAB/Net-Server-POP3-0.0006/scripts/proxytest.pl>
+
+For a more minimalist framework with a different interface, see
+L<Net::Server::POP3::Skeleton|http://perlmonks.org/index.pl?node_id=342754>
 
 =cut
 
