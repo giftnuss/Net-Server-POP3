@@ -11,14 +11,10 @@ my $EOL = "\n"; # Change to "\r\n" if you don't get a full CRLF from
                 # "\n".  I'm investigating how to fix this so it works
                 # on all versions of Perl on all platforms.
 
-# These are the RFCs that I know about and intend to implement:
-# http://www.faqs.org/rfcs/rfc1939.html
-# http://www.faqs.org/rfcs/rfc2449.html
-
 BEGIN {
 	use Exporter ();
 	use vars qw ($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
-	$VERSION     = 0.0004;
+	$VERSION     = 0.0005;
 	@ISA         = qw (Exporter);
 	@EXPORT      = qw ();
 	@EXPORT_OK   = qw (startserver op user);
@@ -40,6 +36,7 @@ sub startserver {
   $op{connect}      ||= \&nop;
   $op{disconnect}   ||= \&nop;
   $op{welcome}      ||= "Welcome to my Test POP3 Server.  Some stuff does not work yet.";
+  warn "WARNING: The welcome message is longer than 506 bytes in violation of RFC1939." if length $op{welcome} > 506;
 
   exists $op{list} or die "The list callback is required."; # Should these croak instead of die?
   exists $op{retrieve} or die "The retrieve callback is required.";
@@ -53,11 +50,10 @@ sub startserver {
 sub messagesize {
   my ($msgnum) = @_;
   if (ref $op{size}) {
-    return $op{size}->($message[$msgnum-1]);
+    return $op{size}->($user{name}, $message[$msgnum-1]);
   } else {
     return length($op{retrieve}->($user{name}, $message[$msgnum-1]));
-    # This kills efficiency, so if you care about that you should
-    # supply the size callback.
+    # This might harm efficiency and kill performance.
   }
 }
 
@@ -340,22 +336,24 @@ You have been warned.
 
 The code as it stands now works, for some definition of "works".  With
 the included simpletest.pl script I have successfully served test
-messages that I have retrieved with Mozilla Mail/News.  However, much
-work remains to be done.
+messages that I have retrieved with Mozilla Mail/News.  Additionally,
+with the included proxytest.pl script I have successfully proxied mail
+from an ISP mail server to a client.  However, much remains to be done.
 
 It is strongly recommended to run with Taint checking enabled.
 
-Stub documentation for this module was created by ExtUtils::ModuleMaker.
-It looks like the author of the extension was negligent enough
-to leave the stub at least partly unedited.
+These are the RFCs that I know about and intend to implement:
+http://www.faqs.org/rfcs/rfc1939.html
+http://www.faqs.org/rfcs/rfc2449.html
 
 =head1 USAGE
 
 This module is designed to be the server/daemon itself and so to
 handle all of the communication to/from the client(s).  The actual
 details of obtaining, storing, and keeping track of messages are left
-to other modules or to the user's own code.  (See the sample script
-simpletest.pl for an example.)
+to other modules or to the user's own code.  (See the sample scripts
+simpletest.pl (simple) and proxytest.pl (somewhat more involved) in
+this distribution for examples.)
 
 The main method is startserver(), which starts the server.  The
 following named arguments may be passed either to new() or to
@@ -363,14 +361,17 @@ startserver().  All callbacks should be passed as coderefs.
 If you pass an argument to new() and then pass an argument of
 the same name to startserver(), the one passed to startserver()
 overrides the one passed to new().  stopserver() has not been
-implemented yet and so neither has restartserver().
+implemented yet and so neither has restartserver(), but they
+are planned for an eventual future version.
 
 =over
 
 =item port
 
 The port number to listen on.  110 is the default.  You only need to
-supply a port number if you want to listen on a different port.
+supply a port number if you want to listen on a different port.  The
+user or group you are running as needs permission to listen on this
+port.
 
 =item servertype
 
@@ -392,7 +393,7 @@ have optional arguments to pass through to Net::Server.
 
 This callback, if supplied, will be called when a client connects.
 This is the recommended place to allocate resources such as a database
-connection handle or a lock on the maildrop.
+connection handle.
 
 The connect callback is optional; you only need to supply it if you
 have setup to do when a client connects.
@@ -401,7 +402,7 @@ have setup to do when a client connects.
 
 This callback, if supplied, is called when the client disconnects.  If
 there is any cleanup to do, this is the place to do it.  Note that
-message deletion is not handled here, but in the delete callback.
+message deletion should not be handled here, but in the delete callback.
 
 The disconnect callback is optional; you only need to supply it if you
 have cleanup to do when a client disconnects.
@@ -434,7 +435,8 @@ otherwise, return false.
 The apop callback is only needed if you want to supply APOP
 authentication.
 
-This is not implemented yet, but I plan to implement it.
+This is not implemented yet, but I plan to implement it in an
+eventual future version.
 
 =item list
 
@@ -445,6 +447,26 @@ correct mailbox after authentication.  That's fine.  The username is
 passed as a help for minimalist implementations.)
 
 The list callback is required.
+
+=item size
+
+The size callback if it exists will be passed a valid, authenticated
+username and a message id (from the list returned by the list
+callback) and must return the message size in octets.  If the size
+callback does not exist, the size will be calculated using the
+retrieve callback, which is inefficient.  Providing the size callback
+will prevent the retrieve callback from being called unnecessarily,
+thus improving performance.  (Most implementations will ingore the
+username, since they will already be locked in to the correct mailbox
+after authentication.  That's fine.  The username is passed as a help
+for minimalist implementations.)
+
+Note that very early versions passed only the message id, not the
+username, to the size callback.  This changed in 0.0005, breaking
+backward-compatibility for the size callback.
+
+The size callback is optional.  You only need to provide it if you
+care about performance.
 
 =item retrieve
 
@@ -463,14 +485,16 @@ The delete callback gets called with a valid, authenticated username
 and a message-id that the user/client has asked to delete.  (Most
 implementations will ingore the username, since they will already be
 locked in to the correct mailbox after authentication.  That's fine.
-The username is passed as a help for minimalist implementations.)  The
-callback is only called in cases where the POP3 protocol says the
-message should actually be deleted.  If the connection terminates
-abnormally before entering the UPDATE state, the callback is not
-called, so code using this module does not need to concern itself with
-marking and unmarking for deletion.  When called, it can do whatever
-it wants, such as actually delete the message, archive it permanently,
-mark it as no longer to be given to this specific user, or whatever.
+The username is passed as a help for minimalist implementations.)
+
+The delete callback is only called in cases where the POP3 protocol
+says the message should actually be deleted.  If the connection
+terminates abnormally before entering the UPDATE state, the callback
+is not called, so code using this module does not need to concern
+itself with marking and unmarking for deletion.  When called, it can
+do whatever it wants, such as actually delete the message, archive it
+permanently, mark it as no longer to be given to this specific user,
+or whatever.
 
 This callback is technically optional, but you'll need to supply one
 if you want to know when to remove messages from the user's maildrop.
@@ -478,7 +502,7 @@ if you want to know when to remove messages from the user's maildrop.
 =item welcome
 
 This string is used as the welcome string.  It must not be longer than
-507 bytes, for arcane reasons involving RFC1939.  (The length is not
+506 bytes, for arcane reasons involving RFC1939.  (The length is not
 checked automatically by Net::Server::POP3, though it may be in a
 future version.)  This is optional; a default welcome is supplied.
 
@@ -508,7 +532,7 @@ The default is not to announce any particular delay.
 If a number or the string 'NEVER' is given, it will be announced in
 the capabilities list as the length of time a message may remain on
 the server before it expires and may be automatically deleted by the
-server.  (The number is a number of days.)
+server.  (The number is a whole number of days.)
 
 This does NOT actually delete anything; it just announces the
 timeframe to the client.  Clients that do not support POP3 Extensions
@@ -546,9 +570,8 @@ now you may have to change your code when you upgrade.  Caveat user.
 =head1 SUPPORT
 
 Use the source, Luke.  You can also contact the author with questions,
-but I cannot guarantee that I will be able to answer all of them in a
-satisfactory fashion.  The code is supplied on an as-is basis with no
-warranty.
+but the code is supplied on an as-is basis with no warranty.  I will
+try to answer any questions, but this is spare-time stuff for me.
 
 =head1 AUTHOR
 
@@ -565,6 +588,10 @@ This program is free software licensed under the terms of...
 The full text of the license can be found in the
 LICENSE file included with this module.
 
+Note that the modules (such as Net::Server) that are used by this
+module or by the sample scripts are covered under their respective
+license agreements and are not governed by the license of
+Net::Server::POP3.
 
 =head1 SEE ALSO
 
@@ -572,33 +599,16 @@ LICENSE file included with this module.
   Net::Server http://search.cpan.org/search?query=Net::Server
   Mail::POP3Client http://search.cpan.org/search?query=Mail::POP3Client
   The simpletest.pl script included in the scripts directory in this distribution.
+  The proxytest.pl script also included in the scripts directory in this distribution.
 
 L<Net::Server|http://search.cpan.org/search?query=Net::Server>
 L<Mail::POP3Client|http://search.cpan.org/search?query=Mail::POP3Client>
-L<simpletest.pl|http://search.cpan.org/src/JONADAB/Net-Server-POP3-$VERSION/scripts/simpletest.pl>
+L<simpletest.pl|http://search.cpan.org/src/JONADAB/Net-Server-POP3-0.0005/scripts/simpletest.pl>
+L<proxytest.pl|http://search.cpan.org/src/JONADAB/Net-Server-POP3-0.0005/scripts/proxytest.pl>
 
 =cut
 
 ############################################# main pod documentation end ##
-
-
-################################################ subroutine header begin ##
-
-=head2 sample_function
-
- Usage     : How to use this function/method
- Purpose   : What it does
- Returns   : What it returns
- Argument  : What it wants to know
- Throws    : Exceptions and other anomolies
- Comments  : This is a sample subroutine header.
-           : It is polite to include more pod and fewer comments.
-
-See Also   : 
-
-=cut
-
-################################################## subroutine header end ##
 
 sub new
 {
@@ -653,4 +663,3 @@ sub capabilities {
 
 42; #this line is important and will help the module return a true value
 __END__
-

@@ -10,6 +10,7 @@ These are in roughly the order they need to be done in.
 [done] Put Net::Server::POP3 up on CPAN
 [    ] Get Net::Server::POP3 in the modules list, and solicit help.
 [done] Make servertype work
+[    ] Add a test in t/ that actually tests the module by using Mail::POP3Client.
 [    ] Implement response codes from RFC 2449
 [    ] Implement storage and continual retrieval in the sample proxy
 [    ] Implement as many SHOULDs as possible from RFC 1939

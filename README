@@ -22,32 +22,37 @@ DESCRIPTION
 
     The code as it stands now works, for some definition of "works". With
     the included simpletest.pl script I have successfully served test
-    messages that I have retrieved with Mozilla Mail/News. However, much
-    work remains to be done.
+    messages that I have retrieved with Mozilla Mail/News. Additionally,
+    with the included proxytest.pl script I have successfully proxied mail
+    from an ISP mail server to a client. However, much remains to be done.
 
     It is strongly recommended to run with Taint checking enabled.
 
-    Stub documentation for this module was created by ExtUtils::ModuleMaker.
-    It looks like the author of the extension was negligent enough to leave
-    the stub at least partly unedited.
+    These are the RFCs that I know about and intend to implement:
+    http://www.faqs.org/rfcs/rfc1939.html
+    http://www.faqs.org/rfcs/rfc2449.html
 
 USAGE
     This module is designed to be the server/daemon itself and so to handle
     all of the communication to/from the client(s). The actual details of
     obtaining, storing, and keeping track of messages are left to other
-    modules or to the user's own code. (See the sample script simpletest.pl
-    for an example.)
+    modules or to the user's own code. (See the sample scripts simpletest.pl
+    (simple) and proxytest.pl (somewhat more involved) in this distribution
+    for examples.)
 
     The main method is startserver(), which starts the server. The following
     named arguments may be passed either to new() or to startserver(). All
     callbacks should be passed as coderefs. If you pass an argument to new()
     and then pass an argument of the same name to startserver(), the one
     passed to startserver() overrides the one passed to new(). stopserver()
-    has not been implemented yet and so neither has restartserver().
+    has not been implemented yet and so neither has restartserver(), but
+    they are planned for an eventual future version.
 
     port
         The port number to listen on. 110 is the default. You only need to
-        supply a port number if you want to listen on a different port.
+        supply a port number if you want to listen on a different port. The
+        user or group you are running as needs permission to listen on this
+        port.
 
     servertype
         A type of server implemented by Net::Server (q.v.) The default is
@@ -66,7 +71,7 @@ USAGE
     connect
         This callback, if supplied, will be called when a client connects.
         This is the recommended place to allocate resources such as a
-        database connection handle or a lock on the maildrop.
+        database connection handle.
 
         The connect callback is optional; you only need to supply it if you
         have setup to do when a client connects.
@@ -74,7 +79,8 @@ USAGE
     disconnect
         This callback, if supplied, is called when the client disconnects.
         If there is any cleanup to do, this is the place to do it. Note that
-        message deletion is not handled here, but in the delete callback.
+        message deletion should not be handled here, but in the delete
+        callback.
 
         The disconnect callback is optional; you only need to supply it if
         you have cleanup to do when a client disconnects.
@@ -105,7 +111,8 @@ USAGE
         The apop callback is only needed if you want to supply APOP
         authentication.
 
-        This is not implemented yet, but I plan to implement it.
+        This is not implemented yet, but I plan to implement it in an
+        eventual future version.
 
     list
         The list callback, given a valid, authenticated username, must
@@ -115,6 +122,25 @@ USAGE
         The username is passed as a help for minimalist implementations.)
 
         The list callback is required.
+
+    size
+        The size callback if it exists will be passed a valid, authenticated
+        username and a message id (from the list returned by the list
+        callback) and must return the message size in octets. If the size
+        callback does not exist, the size will be calculated using the
+        retrieve callback, which is inefficient. Providing the size callback
+        will prevent the retrieve callback from being called unnecessarily,
+        thus improving performance. (Most implementations will ingore the
+        username, since they will already be locked in to the correct
+        mailbox after authentication. That's fine. The username is passed as
+        a help for minimalist implementations.)
+
+        Note that very early versions passed only the message id, not the
+        username, to the size callback. This changed in 0.0005, breaking
+        backward-compatibility for the size callback.
+
+        The size callback is optional. You only need to provide it if you
+        care about performance.
 
     retrieve
         The retrieve callback must accept a valid, authenticated username
@@ -147,7 +173,7 @@ USAGE
 
     welcome
         This string is used as the welcome string. It must not be longer
-        than 507 bytes, for arcane reasons involving RFC1939. (The length is
+        than 506 bytes, for arcane reasons involving RFC1939. (The length is
         not checked automatically by Net::Server::POP3, though it may be in
         a future version.) This is optional; a default welcome is supplied.
 
@@ -211,7 +237,7 @@ SUPPORT
     Use the source, Luke. You can also contact the author with questions,
     but I cannot guarantee that I will be able to answer all of them in a
     satisfactory fashion. The code is supplied on an as-is basis with no
-    warranty.
+    warranty. I will try, but this is spare-time stuff for me.
 
 AUTHOR
             Jonadab the Unsightly One (Nathan Eady)
@@ -226,22 +252,16 @@ COPYRIGHT
     The full text of the license can be found in the LICENSE file included
     with this module.
 
+    Note that the modules this module uses (such as Net::Server) are covered
+    under their respective license agreements and are not governed by the
+    license of Net::Server::POP3.
+
 SEE ALSO
       perl(1)
       Net::Server http://search.cpan.org/search?query=Net::Server
       Mail::POP3Client http://search.cpan.org/search?query=Mail::POP3Client
       The simpletest.pl script included in the scripts directory in this distribution.
+      The proxytest.pl script also included in the scripts directory in this distribution.
 
-    Net::Server Mail::POP3Client simpletest.pl
-
-  sample_function
-     Usage     : How to use this function/method
-     Purpose   : What it does
-     Returns   : What it returns
-     Argument  : What it wants to know
-     Throws    : Exceptions and other anomolies
-     Comments  : This is a sample subroutine header.
-               : It is polite to include more pod and fewer comments.
-
-    See Also :
+    Net::Server Mail::POP3Client simpletest.pl proxytest.pl
 

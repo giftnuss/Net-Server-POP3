@@ -1,8 +1,26 @@
 Revision history for Perl module Net::Server::POP3
 
-0.0005
-        - Started proxytest.pl, a slightly more involved sample script
-          than simpletest.pl
+* denotes changes that break backward compatibility.
+
+0.0005    2004 April 05
+        * The size callback is now passed the username and the message
+          id, for consistency with the other callbacks.  Note that
+          this change breaks backward-compatibility for the size
+          callback.  simpletest.pl was updated to handle this change.
+        - Included proxytest.pl, a slightly more involved sample script
+          than simpletest.pl.  Thanks to Galion Public Library for
+          this better sample script.  When you get mail from it, it
+          gets the mail from your ISP's mailserver on the fly, using
+          Mail::POP3Client.  A more advanced proxy that does
+          cacheing and preretrieval is planned for a future release.
+        - Updated the POD to reflect these changes.
+        - Fixed (hopefully) the link to the sample script in the POD
+          (note to self:  variables don't interpolate in POD), and
+          added a link to the new sample script also.
+        - Removed most of what was left of the stub documentation.
+        - Minor change to simpletest.pl to generate better message IDs
+          in the test messages.  (Why?  Umm, because.)
+        - Added tests to check that the module loads under Taint mode.
 0.0004    2004 March 08
         - Minor improvements to the documentation.  Attempted to make
           the documentation on CPAN link to the simpletest.pl script

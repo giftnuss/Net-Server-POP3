@@ -21,11 +21,6 @@
 	<li><a href="#author">AUTHOR</a></li>
 	<li><a href="#copyright">COPYRIGHT</a></li>
 	<li><a href="#see_also">SEE ALSO</a></li>
-	<ul>
-
-		<li><a href="#sample_function">sample_function</a></li>
-	</ul>
-
 </ul>
 <!-- INDEX END -->
 
@@ -60,12 +55,13 @@ parts that you find need fixing up.  Lots of parts still need fixing.
 You have been warned.</p>
 <p>The code as it stands now works, for some definition of ``works''.  With
 the included simpletest.pl script I have successfully served test
-messages that I have retrieved with Mozilla Mail/News.  However, much
-work remains to be done.</p>
+messages that I have retrieved with Mozilla Mail/News.  Additionally,
+with the included proxytest.pl script I have successfully proxied mail
+from an ISP mail server to a client.  However, much remains to be done.</p>
 <p>It is strongly recommended to run with Taint checking enabled.</p>
-<p>Stub documentation for this module was created by ExtUtils::ModuleMaker.
-It looks like the author of the extension was negligent enough
-to leave the stub at least partly unedited.</p>
+<p>These are the RFCs that I know about and intend to implement:
+<a href="http://www.faqs.org/rfcs/rfc1939.html">http://www.faqs.org/rfcs/rfc1939.html</a>
+<a href="http://www.faqs.org/rfcs/rfc2449.html">http://www.faqs.org/rfcs/rfc2449.html</a></p>
 <p>
 </p>
 <hr />
@@ -73,21 +69,25 @@ to leave the stub at least partly unedited.</p>
 <p>This module is designed to be the server/daemon itself and so to
 handle all of the communication to/from the client(s).  The actual
 details of obtaining, storing, and keeping track of messages are left
-to other modules or to the user's own code.  (See the sample script
-simpletest.pl for an example.)</p>
+to other modules or to the user's own code.  (See the sample scripts
+simpletest.pl (simple) and proxytest.pl (somewhat more involved) in
+this distribution for examples.)</p>
 <p>The main method is startserver(), which starts the server.  The
 following named arguments may be passed either to <code>new()</code> or to
 startserver().  All callbacks should be passed as coderefs.
 If you pass an argument to <code>new()</code> and then pass an argument of
 the same name to startserver(), the one passed to <code>startserver()</code>
 overrides the one passed to new().  <code>stopserver()</code> has not been
-implemented yet and so neither has restartserver().</p>
+implemented yet and so neither has restartserver(), but they
+are planned for an eventual future version.</p>
 <dl>
 <dt><strong><a name="item_port">port</a></strong><br />
 </dt>
 <dd>
 The port number to listen on.  110 is the default.  You only need to
-supply a port number if you want to listen on a different port.
+supply a port number if you want to listen on a different port.  The
+user or group you are running as needs permission to listen on this
+port.
 </dd>
 <p></p>
 <dt><strong><a name="item_servertype">servertype</a></strong><br />
@@ -116,7 +116,7 @@ have optional arguments to pass through to Net::Server.</p>
 <dd>
 This callback, if supplied, will be called when a client connects.
 This is the recommended place to allocate resources such as a database
-connection handle or a lock on the maildrop.
+connection handle.
 </dd>
 <dd>
 <p>The connect callback is optional; you only need to supply it if you
@@ -128,7 +128,7 @@ have setup to do when a client connects.</p>
 <dd>
 This callback, if supplied, is called when the client disconnects.  If
 there is any cleanup to do, this is the place to do it.  Note that
-message deletion is not handled here, but in the delete callback.
+message deletion should not be handled here, but in the delete callback.
 </dd>
 <dd>
 <p>The disconnect callback is optional; you only need to supply it if you
@@ -169,7 +169,8 @@ otherwise, return false.
 authentication.</p>
 </dd>
 <dd>
-<p>This is not implemented yet, but I plan to implement it.</p>
+<p>This is not implemented yet, but I plan to implement it in an
+eventual future version.</p>
 </dd>
 <p></p>
 <dt><strong><a name="item_list">list</a></strong><br />
@@ -183,6 +184,30 @@ passed as a help for minimalist implementations.)
 </dd>
 <dd>
 <p>The list callback is required.</p>
+</dd>
+<p></p>
+<dt><strong><a name="item_size">size</a></strong><br />
+</dt>
+<dd>
+The size callback if it exists will be passed a valid, authenticated
+username and a message id (from the list returned by the list
+callback) and must return the message size in octets.  If the size
+callback does not exist, the size will be calculated using the
+retrieve callback, which is inefficient.  Providing the size callback
+will prevent the retrieve callback from being called unnecessarily,
+thus improving performance.  (Most implementations will ingore the
+username, since they will already be locked in to the correct mailbox
+after authentication.  That's fine.  The username is passed as a help
+for minimalist implementations.)
+</dd>
+<dd>
+<p>Note that very early versions passed only the message id, not the
+username, to the size callback.  This changed in 0.0005, breaking
+backward-compatibility for the size callback.</p>
+</dd>
+<dd>
+<p>The size callback is optional.  You only need to provide it if you
+care about performance.</p>
 </dd>
 <p></p>
 <dt><strong><a name="item_retrieve">retrieve</a></strong><br />
@@ -224,7 +249,7 @@ if you want to know when to remove messages from the user's maildrop.</p>
 </dt>
 <dd>
 This string is used as the welcome string.  It must not be longer than
-507 bytes, for arcane reasons involving RFC1939.  (The length is not
+506 bytes, for arcane reasons involving RFC1939.  (The length is not
 checked automatically by Net::Server::POP3, though it may be in a
 future version.)  This is optional; a default welcome is supplied.
 </dd>
@@ -305,7 +330,7 @@ now you may have to change your code when you upgrade.  Caveat user.</p>
 <p>Use the source, Luke.  You can also contact the author with questions,
 but I cannot guarantee that I will be able to answer all of them in a
 satisfactory fashion.  The code is supplied on an as-is basis with no
-warranty.</p>
+warranty.  I will try, but this is spare-time stuff for me.</p>
 <p>
 </p>
 <hr />
@@ -323,6 +348,9 @@ warranty.</p>
         The BSD License</pre>
 <p>The full text of the license can be found in the
 LICENSE file included with this module.</p>
+<p>Note that the modules this module uses (such as Net::Server) are
+covered under their respective license agreements and are not governed
+by the license of Net::Server::POP3.</p>
 <p>
 </p>
 <hr />
@@ -331,22 +359,12 @@ LICENSE file included with this module.</p>
   perl(1)
   Net::Server <a href="http://search.cpan.org/search?query=Net::Server">http://search.cpan.org/search?query=Net::Server</a>
   Mail::POP3Client <a href="http://search.cpan.org/search?query=Mail::POP3Client">http://search.cpan.org/search?query=Mail::POP3Client</a>
-  The simpletest.pl script included in the scripts directory in this distribution.</pre>
+  The simpletest.pl script included in the scripts directory in this distribution.
+  The proxytest.pl script also included in the scripts directory in this distribution.</pre>
 <p><em>Net::Server</em>
 <em>Mail::POP3Client</em>
-<em>simpletest.pl</em></p>
-<p>
-</p>
-<h2><a name="sample_function">sample_function</a></h2>
-<pre>
- Usage     : How to use this function/method
- Purpose   : What it does
- Returns   : What it returns
- Argument  : What it wants to know
- Throws    : Exceptions and other anomolies
- Comments  : This is a sample subroutine header.
-           : It is polite to include more pod and fewer comments.</pre>
-<p>See Also   :</p>
+<em>simpletest.pl</em>
+<em>proxytest.pl</em></p>
 
 </body>
 

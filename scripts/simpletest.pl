@@ -44,7 +44,7 @@ my $serv = Net::Server::POP3->new
    },
    size => sub {
      warn "Attempting to find size of @_\n" if $debug;
-     my ($msgid) = @_;
+     my ($username, $msgid) = @_;
      my $msg = (grep {$$_[0] eq $msgid } @inbox)[0];
      warn "Found message: ".Dumper(\$msg)."\n" if $debug;
      my $len = length $$msg[1];
@@ -59,8 +59,11 @@ sub newmessage {
   ++$newmsgnum;
   my ($username) = @_;
   my $dt = DateTime->now();
-  my $stamp = sprintf "%04d%02d%02d%02d%02d%02d$username$newmsgnum%07d",
-    $dt->year(), $dt->month(), $dt->day(), $dt->hour(), $dt->min(), $dt->sec(), int rand 7777777;
+  #my $stamp = sprintf "%04d%02d%02d%02d%02d%02d$username$newmsgnum%07d",
+  #  $dt->year(), $dt->month(), $dt->day(), $dt->hour(), $dt->min(), $dt->sec(), int rand 7777777;
+  my $stamp = sprintf "%04d%02d%02d%02d%02d%02d$username%05d%07d",
+    $dt->year(), $dt->month(), $dt->day(), $dt->hour(), $dt->min(),
+      $dt->sec(), $newmsgnum, int rand 7777777;
   my $dateheader = DateTime::Format::Mail->format_datetime($dt);
   my $newmsgid = "testmsg$stamp\@test.jonadab.homeip.net";
   my $newmsgtext = <<"MESSAGE";
@@ -73,8 +76,21 @@ Subject: Testing...
 Content-Type: text/plain; charset=us-ascii
 Date: $dateheader
 
-This is a test.  This is only a test.  If this had been an actual email message,
-it would have contained useful information.  This concludes this test.
+This is a test.  This is only a test.  If this had been an
+actual email message, it would have contained useful
+information (well, maybe; anyway, it hopefully wouldn't have
+rambled on like this about being a test).  This is test
+message number $newmsgnum for this test server run.  This
+concludes this test.
+
+-- 
+GCS(M)>AT d+(?) s? a- C+++ UL(-) P+++>++++ L++ E++ W+(-)@
+N++@ o? w(--) O> M-(X+) V(++) PS---- PE+ Y(--) PGP- t+@ !5
+!X R- !tv---->? b+(+++) DI UF+ D--- G e++(*) h* !r !y-
+
+P++ c--- P6 R++ M>+ O MA++ E PU BD@ C-(M+) D>+ S++ X WP++
+MO! PP! n-() CO! PO-- o+++ G++ OLC-- OLCC--- OLCO--- OLP--
+OLL++ OLA+ Ee++ Ev-->++ Eon! uL++>+ w-() m! osBE++
 MESSAGE
   return [$newmsgid, $newmsgtext];
 }
