@@ -2,6 +2,13 @@ Revision history for Perl module Net::Server::POP3
 
 * denotes changes that break backward compatibility.
 
+0.0007
+        - t/003_simpletest.t, was blowing up under taint mode on some
+          systems on the chdir back to $originaldirectory If it's
+          unsafe to change back to the original current directory,
+          someone explain why, otherwise I've untainted it.  Kudos to
+          the CPAN testers for making me aware of this issue.
+        - Added REQUIRES section to the POD.
 0.0006    2004 May 19
         - EOL can now be passed to new() or startserver() at runtime,
           so that editing POP3.pm is not necessary just to change

@@ -17,7 +17,7 @@ my $EOL = "\n"; # Change to "\r\n" if you don't get a full CRLF from
 BEGIN {
 	use Exporter ();
 	use vars qw ($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
-	$VERSION     = 0.0006;
+	$VERSION     = 0.0007;
 	@ISA         = qw (Exporter);
 	@EXPORT      = qw ();
 	@EXPORT_OK   = qw (startserver op user);
@@ -616,6 +616,10 @@ The DEBUG level is optional.  The default is 0.
 
 =back
 
+=head1 REQUIRES
+
+Net::Server, Exporter
+
 =head1 BUGS
 
 =over
@@ -719,9 +723,9 @@ L<Net::Server|http://search.cpan.org/search?query=Net::Server>
 
 L<Mail::POP3Client|http://search.cpan.org/search?query=Mail::POP3Client>
 
-L<simpletest.pl|http://search.cpan.org/src/JONADAB/Net-Server-POP3-0.0006/scripts/simpletest.pl>
+L<simpletest.pl|http://search.cpan.org/src/JONADAB/Net-Server-POP3-0.0007/scripts/simpletest.pl>
 
-L<proxytest.pl|http://search.cpan.org/src/JONADAB/Net-Server-POP3-0.0006/scripts/proxytest.pl>
+L<proxytest.pl|http://search.cpan.org/src/JONADAB/Net-Server-POP3-0.0007/scripts/proxytest.pl>
 
 For a more minimalist framework with a different interface, see
 L<Net::Server::POP3::Skeleton|http://perlmonks.org/index.pl?node_id=342754>

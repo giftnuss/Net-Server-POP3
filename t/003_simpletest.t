@@ -11,11 +11,14 @@ BEGIN {
   use_ok( 'Cwd' ) or diag "Second-edition Camel says Cwd is core, but it's not installed?  (Net::Server::POP3 doesn't actually need Cwd; only the test uses it; but how old is your perl?)";
 }
 
-my $server = Net::Server::POP3->new ();
+my $server = Net::Server::POP3->new();
 isa_ok ($server, 'Net::Server::POP3');
 
 my $continue = 0; {
-  my $originaldirectory = cwd();
+  my ($originaldirectory) = cwd() =~ /(.*)/; # Should be safe to
+                                             # change back to the
+                                             # original directory,
+                                             # or so one would hope.
   for my $i (@INC) {
     chdir $i;
     if (-e "POP3Client.pm" and $i =~ /Mail/) {
@@ -29,10 +32,10 @@ my $continue = 0; {
 SKIP: {
   skip "Mail::POP3Client does not appear to be installed.  (This is okay; Net::Server::POP3 will work fine without it; we only wanted it for testing.)",
     4 unless $continue;
-  use_ok('Mail::POP3Client') or skip "Skipping tests that rely on unavailable module Mail::POP3Client",
-    3;
+  use_ok('Mail::POP3Client')
+    or skip "Skipping tests that rely on unavailable module Mail::POP3Client", 3;
   my $f = fork;
-  skip "Cannot fork, what are we on, DOS?  Module _may_ still work, try force install, bug reports welcome.",
+  skip "Cannot fork, what are we on, DOS?  Module _may_ still work, bug reports welcome.",
     3 unless defined $f;
   skip "Remaining tests not yet implemented.", 3;
 }

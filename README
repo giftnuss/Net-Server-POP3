@@ -268,6 +268,9 @@ USAGE
 
         The DEBUG level is optional. The default is 0.
 
+REQUIRES
+    Net::Server, Exporter
+
 BUGS
     line endings
         Depending on your platform and possibly your perl version, you might
