@@ -1,0 +1,174 @@
+NAME
+    Net::Server::POP3 - The Server Side of the POP3 Protocol
+
+SYNOPSIS
+      use Net::Server::POP3;
+      my $server = Net::Server::POP3->new(
+        severopts    => \%options,
+        authenticate => \&auth,
+        list         => \&list,
+        retrieve     => \&retrieve,
+        delete       => \&delete,
+        size         => \&size,
+        welcome      => "Welcome to my mail server.",
+      );
+      $server->startserver();
+
+DESCRIPTION
+    This is alpha code. That means it needs work and doesn't yet implement
+    everything it should. Don't use it unless you don't mind fixing up the
+    parts that you find need fixing up. Lots of parts still need fixing. You
+    have been warned.
+
+    The code as it stands now works, for some definition of "works". With
+    the included simpletest.pl script I have successfully served test
+    messages that I have retrieved with Mozilla Mail/News. However, much
+    work remains to be done.
+
+    It is strongly recommended to run with Taint checking enabled.
+
+    Stub documentation for this module was created by ExtUtils::ModuleMaker.
+    It looks like the author of the extension was negligent enough to leave
+    the stub at least partly unedited.
+
+USAGE
+    This module is designed to be the server/daemon itself and so to handle
+    all of the communication to/from the client(s). The actual details of
+    obtaining, storing, and keeping track of messages are left to other
+    modules or to the user's own code. (See the sample script simpletest.pl
+    for an example.)
+
+    The main method is startserver(), which starts the server. The following
+    named arguments may be passed either to new() or to startserver(). All
+    callbacks should be passed as coderefs. If you pass an argument to new()
+    and then pass an argument of the same name to startserver(), the one
+    passed to startserver() overrides the one passed to new(). stopserver()
+    has not been implemented yet and so neither has restartserver().
+
+    port
+        The port number to listen on. 110 is the default.
+
+    servertype
+        A type of server implemented by Net::Server (q.v.) The default is
+        'Fork', which is suitable for installations with a small number of
+        users. At the time of this writing, this option is ignored and
+        Net::Server::Fork is used, but a future version should fix this.
+
+    serveropts
+        A hashref containing extra named arguments to pass to Net::Server.
+        Particularly recommended for security reasons are user, group, and
+        chroot. See the docs for Net::Server for more information.
+
+    connect
+        An optional callback that, if supplied, will be called when a client
+        connects. This is the recommended place to allocate resources such
+        as a database connection handle.
+
+    disconnect
+        This optional callback, if supplied, is called when the client
+        disconnects. If there is any cleanup to do, this is the place to do
+        it. Note that message deletion is not handled here, but in the
+        delete callback.
+
+    authenticate
+        The authenticate callback is passed a username, password, and IP
+        address. If the username and password are valid and the user is
+        allowed to connect from that address and authenticate by the
+        USER/PASS method, then the callback should try to get a changelock
+        on the mailbox and return true if successful; it must return false
+        if any of that fails.
+
+    apop
+        Optional callback for handling APOP auth. If the user attempts APOP
+        auth and this callback exists, it will be passed the username, the
+        digest sent by the user, and the server greeting. If the user's
+        digest is indeed the MD5 digest of the concatenation of the server
+        greeting and the shared secret for that user, then the callback
+        should attempt to lock the mailbox and return true if successful;
+        otherwise, return false.
+
+        This is not implemented yet.
+
+    list
+        The list callback, given a valid, authenticated username, must
+        return a list of message-ids of available messages. (Most
+        implementations will ingore the username, since they will already be
+        locked in to the correct mailbox after authentication. That's fine.
+        The username is passed as a help for minimalist implementations.)
+
+    retrieve
+        The retrieve callback must accept a valid, authenticated username
+        and a message-id (from the list returned by the list callback) and
+        must return the message as a string. (Most implementations will
+        ingore the username, since they will already be locked in to the
+        correct mailbox after authentication. That's fine. The username is
+        passed as a help for minimalist implementations.)
+
+    delete
+        The delete callback gets called with a valid, authenticated username
+        and a message-id that the user/client has asked to delete. (Most
+        implementations will ingore the username, since they will already be
+        locked in to the correct mailbox after authentication. That's fine.
+        The username is passed as a help for minimalist implementations.)
+        The callback is only called in cases where the POP3 protocol says
+        the message should actually be deleted. If the connection terminates
+        abnormally before entering the UPDATE state, the callback is not
+        called, so code using this module does not need to concern itself
+        with marking and unmarking for deletion. When called, it can do
+        whatever it wants, such as actually delete the message, archive it
+        permanently, mark it as no longer to be given to this specific user,
+        or whatever.
+
+    welcome
+        This string is used as the welcome string. It must not be longer
+        than 507 bytes, for arcane reasons involving RFC1939. (The length is
+        not checked automatically by Net::Server::POP3, though it may be in
+        a future version.)
+
+BUGS
+    Some things are just plain not implemented yet. The UIDL implementation
+    uses the message-id as the unique id, rather than calculating a hash as
+    suggested by RFC 1939. In practice, this seems to be what my ISP's mail
+    server does (it calls itself InterMail), which has worked with every
+    client I've thrown at it, so it should be mostly okay, but it's not
+    strictly up to spec I think and may be changed in a later version. There
+    may be other bugs as well; this is very alpha stuff. Significant changes
+    may be made to the code interface before release quality is reached, so
+    if you use this module now you may have to change your code when you
+    upgrade. Caveat user.
+
+SUPPORT
+    Use the source, Luke. You can also contact the author with questions,
+    but I cannot guarantee that I will be able to answer all of them in a
+    satisfactory fashion. The code is supplied on an as-is basis with no
+    warranty.
+
+AUTHOR
+            Jonadab the Unsightly One (Nathan Eady)
+            jonadab@bright.net
+            http://www.bright.net/~jonadab/
+
+COPYRIGHT
+    This program is free software licensed under the terms of...
+
+            The BSD License
+
+    The full text of the license can be found in the LICENSE file included
+    with this module.
+
+SEE ALSO
+      perl(1)
+      Net::Server http://search.cpan.org/search?query=Net::Server
+      Mail::POP3Client http://search.cpan.org/search?query=Mail::POP3Client
+
+  sample_function
+     Usage     : How to use this function/method
+     Purpose   : What it does
+     Returns   : What it returns
+     Argument  : What it wants to know
+     Throws    : Exceptions and other anomolies
+     Comments  : This is a sample subroutine header.
+               : It is polite to include more pod and fewer comments.
+
+    See Also :
+

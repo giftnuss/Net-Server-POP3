@@ -1,0 +1,261 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title>Net::Server::POP3 - The Server Side of the POP3 Protocol</title>
+<link rev="made" href="mailto:root@localhost" />
+</head>
+
+<body style="background-color: white">
+
+<p><a name="__index__"></a></p>
+<!-- INDEX BEGIN -->
+
+<ul>
+
+	<li><a href="#name">NAME</a></li>
+	<li><a href="#synopsis">SYNOPSIS</a></li>
+	<li><a href="#description">DESCRIPTION</a></li>
+	<li><a href="#usage">USAGE</a></li>
+	<li><a href="#bugs">BUGS</a></li>
+	<li><a href="#support">SUPPORT</a></li>
+	<li><a href="#author">AUTHOR</a></li>
+	<li><a href="#copyright">COPYRIGHT</a></li>
+	<li><a href="#see_also">SEE ALSO</a></li>
+	<ul>
+
+		<li><a href="#sample_function">sample_function</a></li>
+	</ul>
+
+</ul>
+<!-- INDEX END -->
+
+<hr />
+<p>
+</p>
+<h1><a name="name">NAME</a></h1>
+<p>Net::Server::POP3 - The Server Side of the POP3 Protocol</p>
+<p>
+</p>
+<hr />
+<h1><a name="synopsis">SYNOPSIS</a></h1>
+<pre>
+  use Net::Server::POP3;
+  my $server = Net::Server::POP3-&gt;new(
+    severopts    =&gt; \%options,
+    authenticate =&gt; \&amp;auth,
+    list         =&gt; \&amp;list,
+    retrieve     =&gt; \&amp;retrieve,
+    delete       =&gt; \&amp;delete,
+    size         =&gt; \&amp;size,
+    welcome      =&gt; &quot;Welcome to my mail server.&quot;,
+  );
+  $server-&gt;startserver();</pre>
+<p>
+</p>
+<hr />
+<h1><a name="description">DESCRIPTION</a></h1>
+<p>This is alpha code.  That means it needs work and doesn't yet implement
+everything it should.  Don't use it unless you don't mind fixing up the
+parts that you find need fixing up.  Lots of parts still need fixing.
+You have been warned.</p>
+<p>The code as it stands now works, for some definition of ``works''.  With
+the included simpletest.pl script I have successfully served test
+messages that I have retrieved with Mozilla Mail/News.  However, much
+work remains to be done.</p>
+<p>It is strongly recommended to run with Taint checking enabled.</p>
+<p>Stub documentation for this module was created by ExtUtils::ModuleMaker.
+It looks like the author of the extension was negligent enough
+to leave the stub at least partly unedited.</p>
+<p>
+</p>
+<hr />
+<h1><a name="usage">USAGE</a></h1>
+<p>This module is designed to be the server/daemon itself and so to
+handle all of the communication to/from the client(s).  The actual
+details of obtaining, storing, and keeping track of messages are left
+to other modules or to the user's own code.  (See the sample script
+simpletest.pl for an example.)</p>
+<p>The main method is startserver(), which starts the server.  The
+following named arguments may be passed either to <code>new()</code> or to
+startserver().  All callbacks should be passed as coderefs.
+If you pass an argument to <code>new()</code> and then pass an argument of
+the same name to startserver(), the one passed to <code>startserver()</code>
+overrides the one passed to new().  <code>stopserver()</code> has not been
+implemented yet and so neither has restartserver().</p>
+<dl>
+<dt><strong><a name="item_port">port</a></strong><br />
+</dt>
+<dd>
+The port number to listen on.  110 is the default.
+</dd>
+<p></p>
+<dt><strong><a name="item_servertype">servertype</a></strong><br />
+</dt>
+<dd>
+A type of server implemented by Net::Server (q.v.)  The default is
+'Fork', which is suitable for installations with a small number of
+users.  At the time of this writing, this option is ignored and
+Net::Server::Fork is used, but a future version should fix this.
+</dd>
+<p></p>
+<dt><strong><a name="item_serveropts">serveropts</a></strong><br />
+</dt>
+<dd>
+A hashref containing extra named arguments to pass to Net::Server.
+Particularly recommended for security reasons are user, group, and
+chroot.  See the docs for Net::Server for more information.
+</dd>
+<p></p>
+<dt><strong><a name="item_connect">connect</a></strong><br />
+</dt>
+<dd>
+An optional callback that, if supplied, will be called when a client
+connects.  This is the recommended place to allocate resources such as
+a database connection handle.
+</dd>
+<p></p>
+<dt><strong><a name="item_disconnect">disconnect</a></strong><br />
+</dt>
+<dd>
+This optional callback, if supplied, is called when the client
+disconnects.  If there is any cleanup to do, this is the place to do
+it.  Note that message deletion is not handled here, but in the delete
+callback.
+</dd>
+<p></p>
+<dt><strong><a name="item_authenticate">authenticate</a></strong><br />
+</dt>
+<dd>
+The authenticate callback is passed a username, password, and IP
+address.  If the username and password are valid and the user is
+allowed to connect from that address and authenticate by the USER/PASS
+method, then the callback should try to get a changelock on the
+mailbox and return true if successful; it must return false if any of
+that fails.
+</dd>
+<p></p>
+<dt><strong><a name="item_apop">apop</a></strong><br />
+</dt>
+<dd>
+Optional callback for handling APOP auth.  If the user attempts APOP
+auth and this callback exists, it will be passed the username, the
+digest sent by the user, and the server greeting.  If the user's
+digest is indeed the MD5 digest of the concatenation of the server
+greeting and the shared secret for that user, then the callback
+should attempt to lock the mailbox and return true if successful;
+otherwise, return false.
+</dd>
+<dd>
+<p>This is not implemented yet.</p>
+</dd>
+<p></p>
+<dt><strong><a name="item_list">list</a></strong><br />
+</dt>
+<dd>
+The list callback, given a valid, authenticated username, must return
+a list of message-ids of available messages.  (Most implementations
+will ingore the username, since they will already be locked in to the
+correct mailbox after authentication.  That's fine.  The username is
+passed as a help for minimalist implementations.)
+</dd>
+<p></p>
+<dt><strong><a name="item_retrieve">retrieve</a></strong><br />
+</dt>
+<dd>
+The retrieve callback must accept a valid, authenticated username and
+a message-id (from the list returned by the list callback) and must
+return the message as a string.  (Most implementations will ingore the
+username, since they will already be locked in to the correct mailbox
+after authentication.  That's fine.  The username is passed as a help
+for minimalist implementations.)
+</dd>
+<p></p>
+<dt><strong><a name="item_delete">delete</a></strong><br />
+</dt>
+<dd>
+The delete callback gets called with a valid, authenticated username
+and a message-id that the user/client has asked to delete.  (Most
+implementations will ingore the username, since they will already be
+locked in to the correct mailbox after authentication.  That's fine.
+The username is passed as a help for minimalist implementations.)  The
+callback is only called in cases where the POP3 protocol says the
+message should actually be deleted.  If the connection terminates
+abnormally before entering the UPDATE state, the callback is not
+called, so code using this module does not need to concern itself with
+marking and unmarking for deletion.  When called, it can do whatever
+it wants, such as actually delete the message, archive it permanently,
+mark it as no longer to be given to this specific user, or whatever.
+</dd>
+<p></p>
+<dt><strong><a name="item_welcome">welcome</a></strong><br />
+</dt>
+<dd>
+This string is used as the welcome string.  It must not be longer than
+507 bytes, for arcane reasons involving RFC1939.  (The length is not
+checked automatically by Net::Server::POP3, though it may be in a
+future version.)
+</dd>
+<p></p></dl>
+<p>
+</p>
+<hr />
+<h1><a name="bugs">BUGS</a></h1>
+<p>Some things are just plain not implemented yet.  The UIDL
+implementation uses the message-id as the unique id, rather than
+calculating a hash as suggested by RFC 1939.  In practice, this seems
+to be what my ISP's mail server does (it calls itself InterMail),
+which has worked with every client I've thrown at it, so it should be
+mostly okay, but it's not strictly up to spec I think and may be
+changed in a later version.  There may be other bugs as well; this is
+very alpha stuff.  Significant changes may be made to the code
+interface before release quality is reached, so if you use this module
+now you may have to change your code when you upgrade.  Caveat user.</p>
+<p>
+</p>
+<hr />
+<h1><a name="support">SUPPORT</a></h1>
+<p>Use the source, Luke.  You can also contact the author with questions,
+but I cannot guarantee that I will be able to answer all of them in a
+satisfactory fashion.  The code is supplied on an as-is basis with no
+warranty.</p>
+<p>
+</p>
+<hr />
+<h1><a name="author">AUTHOR</a></h1>
+<pre>
+        Jonadab the Unsightly One (Nathan Eady)
+        jonadab@bright.net
+        <a href="http://www.bright.net/~jonadab/">http://www.bright.net/~jonadab/</a></pre>
+<p>
+</p>
+<hr />
+<h1><a name="copyright">COPYRIGHT</a></h1>
+<p>This program is free software licensed under the terms of...</p>
+<pre>
+        The BSD License</pre>
+<p>The full text of the license can be found in the
+LICENSE file included with this module.</p>
+<p>
+</p>
+<hr />
+<h1><a name="see_also">SEE ALSO</a></h1>
+<pre>
+  perl(1)
+  Net::Server <a href="http://search.cpan.org/search?query=Net::Server">http://search.cpan.org/search?query=Net::Server</a>
+  Mail::POP3Client <a href="http://search.cpan.org/search?query=Mail::POP3Client">http://search.cpan.org/search?query=Mail::POP3Client</a></pre>
+<p>
+</p>
+<h2><a name="sample_function">sample_function</a></h2>
+<pre>
+ Usage     : How to use this function/method
+ Purpose   : What it does
+ Returns   : What it returns
+ Argument  : What it wants to know
+ Throws    : Exceptions and other anomolies
+ Comments  : This is a sample subroutine header.
+           : It is polite to include more pod and fewer comments.</pre>
+<p>See Also   :</p>
+
+</body>
+
+</html>

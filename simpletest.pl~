@@ -1,0 +1,20 @@
+#!/usr/bin/perl -w -T
+
+BEGIN { push @INC, "/var/www/html/Net-Server-POP3/Net-Server-POP3/lib"; }
+
+use Net::Server::POP3;
+
+startserver(
+            serveropts => +{
+                            user      => 'mailproxy',
+                            group     => 'nobody',
+                            log_level => 3,
+                           },
+            authenticate => sub {
+              my ($user, $pass, $ip) = @_;
+              my %user = { testuser => 'testpass', };
+              if ($user{$user} eq $pass) {return 1} else {return 0}
+            },
+           );
+
+
