@@ -5,6 +5,8 @@ use Data::Dumper; $|++; # For debugging.  This can eventually be removed, but ri
 use strict;
 my %parameters; my @message; my @deleted;
 
+my $debug = 1;  # Set this to undef to suppress debugging info.
+
 my $EOL = "\n"; # Change to "\r\n" if you don't get a full CRLF from
                 # "\n".  I'm investigating how to fix this so it works
                 # on all versions of Perl on all platforms.
@@ -16,7 +18,7 @@ my $EOL = "\n"; # Change to "\r\n" if you don't get a full CRLF from
 BEGIN {
 	use Exporter ();
 	use vars qw ($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
-	$VERSION     = 0.0003;
+	$VERSION     = 0.0004;
 	@ISA         = qw (Exporter);
 	@EXPORT      = qw ();
 	@EXPORT_OK   = qw (startserver op user);
@@ -68,7 +70,7 @@ sub boxsize {
 sub scanlisting {
   # returns a scan listing for each message number in @_
 
-  warn "scanlisting @_\n" if $main::debug;
+  warn "scanlisting @_\n" if $debug;
   # In order to simplify parsing, all POP3 servers are required to use
   # a certain format for scan listings.  A scan listing consists of
   # the message-number of the message, followed by a single space and
@@ -199,20 +201,20 @@ sub process_request { # The name of this sub is magic for Net::Server.
             my ($msgnum) = $1;
             if ($msgnum <= @message) {
               print "+OK sending $msgnum " . $message[$msgnum-1] . "$EOL";
-              warn "Sending message $msgnum:\n" if $main::debug;
-              warn "\@message is as follows: " . Dumper(\@message) . "\n" if $main::debug;
+              warn "Sending message $msgnum:\n" if $debug;
+              warn "\@message is as follows: " . Dumper(\@message) . "\n" if $debug;
               my $msgid = $message[$msgnum-1];
-              warn "message id is $msgid\n" if $main::debug;
+              warn "message id is $msgid\n" if $debug;
               die "No retrieve callback\n" unless ref $op{retrieve};
               my $msg = $op{retrieve}->($user{name}, $msgid);
-              warn "Retrieved message\n" if $main::debug;
+              warn "Retrieved message\n" if $debug;
               if (not $msg =~ /\n\n/m) {  warn "Message $msgnum ($msgid) seems very wrong:\n$msg\n"; die "Suffering and Pain!\n"; }
-              warn "Message is as follows: " . Dumper($msg) . "\n" if $main::debug;
+              warn "Message is as follows: " . Dumper($msg) . "\n" if $debug;
               for (split /\n/, $msg) {
                 chomp;
                 s/^/./ if /^[.]/;
                 print "$_$EOL";
-                warn "$_\n" if $main::debug;
+                warn "$_\n" if $debug;
               }
               print ".$EOL";
             } else {
@@ -279,7 +281,7 @@ sub process_request { # The name of this sub is magic for Net::Server.
               if ($op{authenticate}->(@user{'name','pass'})) { # TODO:  also pass IP addy
                 $state = 1;
                 @message = $op{list}->($user{name});
-                warn "Have maildrop: " . Dumper(\@message) . "\n" if $main::debug;
+                warn "Have maildrop: " . Dumper(\@message) . "\n" if $debug;
                 print "+OK $user{name}'s maildrop has ".@message." messages (".boxsize(@message)." octets)$EOL";
               } else {
                 delete $user{name};
@@ -313,7 +315,7 @@ sub process_request { # The name of this sub is magic for Net::Server.
 
 =head1 NAME
 
-Net::Server::POP3 - The Server Side of the POP3 Protocol
+Net::Server::POP3 - The Server Side of the POP3 Protocol for email
 
 =head1 SYNOPSIS
 
@@ -569,9 +571,11 @@ LICENSE file included with this module.
   perl(1)
   Net::Server http://search.cpan.org/search?query=Net::Server
   Mail::POP3Client http://search.cpan.org/search?query=Mail::POP3Client
+  The simpletest.pl script included in the scripts directory in this distribution.
 
 L<Net::Server|http://search.cpan.org/search?query=Net::Server>
 L<Mail::POP3Client|http://search.cpan.org/search?query=Mail::POP3Client>
+L<simpletest.pl|http://search.cpan.org/src/JONADAB/Net-Server-POP3-$VERSION/scripts/simpletest.pl>
 
 =cut
 
@@ -613,7 +617,10 @@ sub capabilities {
               'USER',
               # 'SASL mechanisms', # SASL auth is specified in a separate RFC someplace.
               # 'RESP-CODES', # Response codes as specified in RFC 2449.
-              # 'PIPELINING', # I *think* this should Just Work(TM), given the way Perl handles sockets, but I'm NOT sure, so I'm leaving this turned off for now.
+              # 'PIPELINING', # I *think* this should Just Work(TM),
+              #               given the way Perl handles sockets, but
+              #               I'm NOT sure, so I'm leaving this turned
+              #               off for now.
               'UIDL',
               "IMPLEMENTATION Net::Server::POP3 version_$VERSION",
              );
@@ -641,7 +648,7 @@ sub capabilities {
     }
   }
   return "$response$EOL".
-    (join "$EOL", @capa).".$EOL";
+    (join "$EOL", @capa)."$EOL.$EOL";
 }
 
 42; #this line is important and will help the module return a true value

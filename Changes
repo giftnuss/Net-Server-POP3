@@ -1,6 +1,30 @@
 Revision history for Perl module Net::Server::POP3
 
-0.01 Tue Dec 30 16:49:29 2003
+0.0005
+        - Started proxytest.pl, a slightly more involved sample script
+          than simpletest.pl
+0.0004    2004 March 08
+        - Minor improvements to the documentation.  Attempted to make
+          the documentation on CPAN link to the simpletest.pl script
+          (not sure how that'll turn out).
+        - Started keeping track of changes (in this file you're reading).
+        - Fixed minor package scope bug introduced in 0.0003.
+0.0003    Feb 13 11:15    2004
+        - Abstracted network line endings to a $EOL variable until I
+          figure out how to make this work on all platforms and Perl
+          versions.
+        - Fixed a fencepost error in the delete code that was not
+          exercised by simpletest.pl but was discovered and reported
+          by Christian Neeb.
+0.0002    Jan 25 16:50    2004
+        - first version to be indexed by the indexer, so you can find
+          it on search.cpan.org (0.0001 was not indexed, because it
+          did not unpack into a single directory).  Minimal changes.
+          The version number inside POP3.pm was not incremented as
+          it should have been, so may show up as 0.0001
+0.0001    Jan 24 19:04    2004
+        - first version uploaded to CPAN.  Very early version, totally incomplete.
+0.0000    Dec 30 16:49:29 2003
 	- original version; created by ExtUtils::ModuleMaker 0.32
 
 

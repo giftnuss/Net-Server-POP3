@@ -3,7 +3,7 @@
 our $debug = 1; $|++; use Data::Dumper; # Yes, it's that alpha.
 use strict; use warnings;
 
-BEGIN { push @INC, "/home/mailproxy/lib"; }
+BEGIN { push @INC, "/home/mailproxy/lib"; } # You can comment this out if you install Net::Server::POP3 in a normal place.
 
 use Net::Server::POP3;
 use DateTime; use DateTime::Format::Mail;
@@ -38,7 +38,6 @@ my $serv = Net::Server::POP3->new
      warn "retrieve using inbox:\n".Dumper(\@inbox)."\n" if $debug;
      my @l = grep { $$_[0] eq $msgid } @inbox;
      warn "retrieve found matching messages: " . Dumper(\@l) . "\n" if $debug;
-     #my $msg = (map { $$_[1] } @l)[0];
      my $msg = $l[0][1];
      warn "$msg\n" if $debug;
      return $msg;
@@ -46,7 +45,6 @@ my $serv = Net::Server::POP3->new
    size => sub {
      warn "Attempting to find size of @_\n" if $debug;
      my ($msgid) = @_;
-     # return (map { length $$_[1] } grep {$$_[0] eq $msgid } @inbox)[0];
      my $msg = (grep {$$_[0] eq $msgid } @inbox)[0];
      warn "Found message: ".Dumper(\$msg)."\n" if $debug;
      my $len = length $$msg[1];

@@ -1,5 +1,5 @@
 NAME
-    Net::Server::POP3 - The Server Side of the POP3 Protocol
+    Net::Server::POP3 - The Server Side of the POP3 Protocol for email
 
 SYNOPSIS
       use Net::Server::POP3;
@@ -230,8 +230,9 @@ SEE ALSO
       perl(1)
       Net::Server http://search.cpan.org/search?query=Net::Server
       Mail::POP3Client http://search.cpan.org/search?query=Mail::POP3Client
+      The simpletest.pl script included in the scripts directory in this distribution.
 
-    Net::Server Mail::POP3Client
+    Net::Server Mail::POP3Client simpletest.pl
 
   sample_function
      Usage     : How to use this function/method
