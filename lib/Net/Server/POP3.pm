@@ -6,7 +6,7 @@ use strict;
 my %parameters; my @message; my @deleted;
 
 my $debug = 0;  # Set this to 1 to generate more debugging info.
-#use Data::Dumper; $|++; # Uncomment this stuff for debugging.
+use Data::Dumper; $|++; # Uncomment this stuff for debugging.
 
 #my $EOL = "\n"; # Change to "\r\n" if you don't get a full CRLF from
 #                # "\n".  I'm investigating how to fix this so it works
@@ -19,13 +19,13 @@ my $EOL = "\015\012"; # I have reason to believe this is definitively
                       # versions, but it needs testing.
 
 BEGIN {
-	use Exporter ();
-	use vars qw ($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
-	$VERSION     = 0.0009;
-	@ISA         = qw (Exporter);
-	@EXPORT      = qw ();
-	@EXPORT_OK   = qw (startserver op user);
-	%EXPORT_TAGS = ();
+  use Exporter ();
+  use vars qw ($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
+  $VERSION     = 0.0009;
+  @ISA         = qw (Exporter);
+  @EXPORT      = qw ();
+  @EXPORT_OK   = qw (startserver op user);
+  %EXPORT_TAGS = ();
 }
 
 sub nop {return}; # Used as default for optional callbacks.
@@ -65,10 +65,23 @@ sub messagesize {
   my ($msgnum) = @_;
   if (ref $op{size}) {
     return $op{size}->($user{name}, $message[$msgnum-1]);
-  } else {
-    return length($op{retrieve}->($user{name}, $message[$msgnum-1]));
+  }
+  else {
+    # Use the correct line ending when calculate the size of a message.
+    return length(preparesend($op{retrieve}->($user{name}, $message[$msgnum-1])));
     # This might harm efficiency and kill performance.
   }
+}
+
+sub preparesend {
+  my $msg = shift;
+  my $new = '';
+  for (split /\n/, $msg) {
+    chomp;
+    s/^/./ if /^[.]/;
+    $new .= "$_$EOL";
+  }
+  return $new;
 }
 
 sub boxsize {
@@ -104,15 +117,18 @@ sub process_request { # The name of this sub is magic for Net::Server.
       my $previous_alarm = alarm($timeout);
       my $state = 0; # 0 = not authenticated.  1 = authenticated.
       while (<STDIN>) {
+        warn "rx: " . $_ if $debug > 1;
         chomp;
         if ($state) {
           # We _are_ authenticated.  Let user do stuff.
           # The RFC calls this the Transaction State.
           if (/^STAT/i) {
             print "+OK ".(scalar @message)." ".boxsize(@message).$EOL;
-          } elsif (/^VERSION/i) {
+          }
+          elsif (/^VERSION/i) {
             print "+OK Net::Server::POP3 $VERSION$EOL";
-          } elsif (/^LIST\s*(\d*)/i) {
+          }
+          elsif (/^LIST\s*(\d*)/i) {
             my $msgnum = $1;
             if ($msgnum) {
               # If an argument was given and the POP3 server issues a
@@ -215,16 +231,15 @@ sub process_request { # The name of this sub is magic for Net::Server.
               die "No retrieve callback\n" unless ref $op{retrieve};
               my $msg = $op{retrieve}->($user{name}, $msgid);
               warn "Retrieved message\n" if $debug;
-              if (not $msg =~ /\n\n/m) {  warn "Message $msgnum ($msgid) seems very wrong:\n$msg\n"; die "Suffering and Pain!\n"; }
-              warn "Message is as follows: " . Dumper($msg) . "\n" if $debug>1;
-              for (split /\n/, $msg) {
-                chomp;
-                s/^/./ if /^[.]/;
-                print "$_$EOL";
-                warn "$_\n" if $debug>2;
-              }
+              #if (not $msg =~ /\n\n/m) {
+              #   warn "Message $msgnum ($msgid) seems very wrong:\n$msg\n";
+                 #die "Suffering and Pain!\n";
+              #}
+              #warn "Message is as follows: " . Dumper($msg) . "\n" if 1 && $debug>1;
+              print preparesend($msg);
               print ".$EOL";
-            } else {
+            }
+            else {
               # Most clients won't even try this.
               print "-ERR Cannot find message $msgnum (only ".@message." in drop)$EOL";
             }
@@ -260,43 +275,55 @@ sub process_request { # The name of this sub is magic for Net::Server.
             print "+OK Bye, closing connection...$EOL";
             $op{disconnect}->();
             return 0;
-          } elsif (/^NOOP/) {
+          }
+          elsif (/^NOOP/) {
             print "+OK nothing to do.$EOL";
-          } elsif (/^RSET/) {
+          }
+          elsif (/^RSET/) {
             @deleted = ();
             print "+OK now no messages are marked for deletion at end of session.$EOL";
-          } elsif (/^CAPA/) {
+          }
+          elsif (/^CAPA/) {
             print capabilities(1); # The 1 indicates we are in the transaction state.
-          } else {
+          }
+          else {
             warn "Client said \"$_\" (which I do not understand in the transaction state)\n" if defined $debug; # even if it's at level 0.  undef it if you don't want this.
             print "-ERR That must be something I have not implemented yet.$EOL";
           }
-        } else {
+        }
+        else {
           # We're not authenticated yet.  The RFC calls this the Authentication State.
           if (/^QUIT/i) {
             print "+OK Bye, closing connection...$EOL";
             $op{disconnect}->();
             return 0;
-          } elsif (/^VERSION/i) {
+          }
+          elsif (/^VERSION/i) {
             print "+OK Net::Server::POP3 $VERSION$EOL";
-          } elsif (/^USER\s*(\S*)/i) {
+          }
+          elsif (/^USER\s*(\S*)/i) {
             $user{name} = $1;  delete $user{pass};
             print "+OK $user{name} knows where his towel is; use PASS to authenticate$EOL";
-          } elsif (/^PASS\s*(.*?)\s*$/i) {
+          }
+          elsif (/^PASS\s*(.*?)\s*$/i) {
             $user{pass} = $1;
             $user{peer} = $self->{server}->{peeraddr}; # Todo: Fix this to get IP address from Net::Server.
-            $user{peer} = Dumper($self->{server}) if $debug;
+            $user{peer} = Dumper($self->{server}) if 1 || $debug;
             if ($user{name}) {
               if ($op{authenticate}->(@user{'name','pass','peer'})) {
                 $state = 1;
                 @message = $op{list}->($user{name});
                 warn "Have maildrop: " . Dumper(\@message) . "\n" if $debug>1;
                 print "+OK $user{name}'s maildrop has ".@message." messages (".boxsize(@message)." octets)$EOL";
-              } else {
+              }
+              else {
+                warn "LOGOUT user $user{name}.\n" if $debug>1;
                 delete $user{name};
                 print "-ERR Unable to lock maildrop at this time with that auth info$EOL";
               }
-            } else {
+              warn "AUTHENTICATE DONE.\n";
+            }
+            else {
               print "-ERR You can only use PASS right after USER$EOL";
             }
           } elsif (/^APOP/) {
@@ -745,15 +772,15 @@ try to answer any questions, but this is spare-time stuff for me.
 
 =head1 AUTHOR
 
-	Jonadab the Unsightly One (Nathan Eady)
-	jonadab@bright.net
-	http://www.bright.net/~jonadab/
+  Jonadab the Unsightly One (Nathan Eady)
+  jonadab@bright.net
+  http://www.bright.net/~jonadab/
 
 =head1 COPYRIGHT
 
 This program is free software licensed under the terms of...
 
-	The BSD License
+  The BSD License
 
 The full text of the license can be found in the
 LICENSE file included with this module.
